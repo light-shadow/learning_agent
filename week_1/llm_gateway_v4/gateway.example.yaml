@@ -1,0 +1,86 @@
+service_name: llm-gateway-v4
+log_file: logs/llm_gateway_v4.log
+
+# 留空时采用开发模式；生产环境请通过 GATEWAY_API_KEY 配置调用方密钥。
+api_keys:
+  - ${GATEWAY_API_KEY:-}
+
+database_url: data/gateway.db
+structured_output_retries: 1
+
+retry:
+  max_attempts_per_route: 2
+  base_delay_seconds: 0.25
+  max_delay_seconds: 4
+  retry_statuses: [408, 409, 429, 500, 502, 503, 504]
+
+circuit_breaker:
+  failure_threshold: 5
+  cooldown_seconds: 30
+
+identity_rate_limit:
+  enabled: true
+  requests_per_minute: 60
+  burst: 10
+
+model_rate_limit:
+  enabled: true
+  requests_per_minute: 120
+  burst: 20
+
+# 启用后会持久化模型输出正文；默认关闭。
+stream_checkpoint:
+  enabled: false
+  flush_interval_seconds: 1
+  max_chars: 200000
+
+providers:
+  deepseek:
+    protocol: openai_compatible
+    base_url: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+    api_key: ${DEEPSEEK_API_KEY:-}
+  openai:
+    protocol: openai_compatible
+    base_url: ${OPENAI_BASE_URL:-https://api.openai.com}
+    api_key: ${OPENAI_API_KEY:-}
+  anthropic:
+    protocol: anthropic
+    base_url: ${ANTHROPIC_BASE_URL:-https://api.anthropic.com}
+    api_key: ${ANTHROPIC_API_KEY:-}
+    enabled: false
+
+models:
+  deepseek-v4-pro:
+    strategy: priority
+    routes:
+      - provider: deepseek
+        model: ${DEEPSEEK_V4_PRO_MODEL:-deepseek-v4-pro}
+        api: chat
+      - provider: deepseek
+        model: ${DEEPSEEK_V4_FLASH_MODEL:-deepseek-v4-flash}
+        api: chat
+  smart:
+    strategy: weighted_round_robin
+    routes:
+      - provider: openai
+        model: ${OPENAI_GENERAL_MODEL:-gpt-4.1-mini}
+        weight: 3
+        api: both
+      - provider: deepseek
+        model: ${DEEPSEEK_CHAT_MODEL:-deepseek-chat}
+        weight: 1
+        api: both
+  anthropic-general:
+    strategy: priority
+    routes:
+      - provider: anthropic
+        model: ${ANTHROPIC_GENERAL_MODEL:-claude-3-5-haiku-latest}
+        api: chat
+
+pricing:
+  deepseek-v4-pro:
+    input_per_million: 1.0
+    output_per_million: 4.0
+  deepseek-v4-flash:
+    input_per_million: 0.8
+    output_per_million: 3.2
