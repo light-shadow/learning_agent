@@ -31,6 +31,13 @@ class CreateRefundArgs(StrictArgs):
     reason: str = Field(min_length=4, max_length=200)
 
 
+class TransferArgs(StrictArgs):
+    # 转账工具的参数契约：限制账户格式、金额范围并拒绝模型注入额外字段。
+    from_account: str = Field(pattern=r"^ACC-[A-Z]-[0-9]{6}$")
+    to_account: str = Field(pattern=r"^ACC-[A-Z]-[0-9]{6}$")
+    amount: float = Field(gt=0, le=100_000)
+
+
 class SearchOrdersArgs(StrictArgs):
     # 订单检索工具的参数契约：限制可查询状态和分页范围。
     status: Literal["paid", "shipped", "refunded"]
@@ -59,6 +66,10 @@ class PermissionDecision(StrEnum):
     ALLOW = "allow"
     DENY = "deny"
     CONFIRM = "confirm"
+
+
+# 兼容验收脚本中的决策命名，实际值仍复用运行时的三态枚举。
+DecisionAction = PermissionDecision
 
 
 class PermissionMode(StrEnum):
@@ -105,7 +116,7 @@ class ToolPolicy:
     enabled: bool = True
 
 
-Handler = Callable[[StrictArgs, ExecutionContext], Awaitable[dict[str, Any]]]
+Handler = Callable[[str, StrictArgs, ExecutionContext], Awaitable[dict[str, Any]]]
 Precheck = Callable[[StrictArgs, ExecutionContext], Awaitable[None]]
 CanonicalTarget = Callable[[StrictArgs, ExecutionContext], str]
 
@@ -150,6 +161,20 @@ class ToolResult:
     ok: bool
     content: Any
     error_code: str | None = None
+
+    @property
+    def code(self) -> str:
+        # 对外提供稳定结果码；成功调用统一返回 OK。
+        return self.error_code or "OK"
+
+    @property
+    def action(self) -> PermissionDecision:
+        # 将运行时执行结果投影为 allow、deny、confirm 三态，供调用方展示下一步动作。
+        if self.ok:
+            return PermissionDecision.ALLOW
+        if self.error_code in {"APPROVAL_REQUIRED", "CONFIRMATION_REQUIRED"}:
+            return PermissionDecision.CONFIRM
+        return PermissionDecision.DENY
 
     def to_model_payload(self) -> dict[str, Any]:
         # 工具结果是供模型参考的不可信数据，不能成为新的控制指令。
@@ -220,14 +245,20 @@ class ApprovalStore:
     def approve(
         self,
         approval_id: str,
+        context: ExecutionContext | None = None,
+        tool_name: str | None = None,
+        args: StrictArgs | Mapping[str, Any] | None = None,
         *,
-        user_id: str,
-        tenant_id: str,
-        tool_name: str,
-        args: StrictArgs,
+        user_id: str | None = None,
+        tenant_id: str | None = None,
         ttl_seconds: int = 300,
     ) -> None:
         # 签发与调用参数绑定、带有效期的一次性审批凭证。
+        if context is not None:
+            user_id = context.user_id
+            tenant_id = context.tenant_id
+        if not user_id or not tenant_id or not tool_name or args is None:
+            raise ValueError("审批必须提供用户、租户、工具和参数")
         self._items[approval_id] = Approval(
             approval_id=approval_id,
             user_id=user_id,
@@ -265,14 +296,28 @@ class PermissionEngine:
         return PermissionDecision.ALLOW
 
 
+@dataclass(frozen=True)
+class AuditRecord:
+    # 审计记录：保存最小化的调用治理阶段和稳定结果码。
+    phase: str
+    code: str
+    data: Mapping[str, Any]
+
+
 @dataclass
 class AuditSink:
     # 审计输出端口：记录调用链路、主体、风险、结果与耗时等可观测信息。
-    records: list[dict[str, Any]] = field(default_factory=list)
+    records: list[AuditRecord] = field(default_factory=list)
 
     async def write(self, record: Mapping[str, Any]) -> None:
         # 持久化单条已脱敏的工具调用审计记录。
-        self.records.append(dict(record))
+        self.records.append(
+            AuditRecord(
+                phase=str(record.get("phase", "decision")),
+                code=str(record.get("code") or record.get("error_code") or "APPROVED"),
+                data=dict(record),
+            )
+        )
 
 
 # 识别令牌、密钥、密码和授权信息等敏感字段的匹配规则。
@@ -302,7 +347,8 @@ def redact(value: Any) -> Any:
     if isinstance(value, tuple):
         return tuple(redact(item) for item in value)
     if isinstance(value, str):
-        return re.sub(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", "***@***", value)
+        value = re.sub(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", "***@***", value)
+        return re.sub(r"\b(ACC-[A-Z]-)\d{2}(\d{4})\b", r"\1****\2", value)
     return value
 
 
@@ -414,7 +460,7 @@ class ToolRuntime:
     async def _execute_once(self, prepared: PreparedCall, ctx: ExecutionContext) -> dict[str, Any]:
         # 在工具策略规定的时限内执行一次实际处理器调用。
         async with asyncio.timeout(prepared.tool.policy.timeout_seconds):
-            return await prepared.tool.handler(prepared.args, ctx)
+            return await prepared.tool.handler(prepared.call.id, prepared.args, ctx)
 
     async def _execute_with_recovery(self, prepared: PreparedCall, ctx: ExecutionContext) -> dict[str, Any]:
         # 只重试读操作或显式幂等的写操作，避免重复产生不可逆副作用。
@@ -463,6 +509,8 @@ class ToolRuntime:
                 "decision": prepared.decision,
                 "effect": prepared.tool.policy.effect,
                 "risk": prepared.tool.policy.risk,
+                "phase": "execution",
+                "code": error_code or "OK",
                 "ok": ok,
                 "error_code": error_code,
                 "duration_ms": round((time.monotonic() - started_at) * 1000, 2),
@@ -491,6 +539,8 @@ class ToolRuntime:
                     "user_id": ctx.user_id,
                     "tenant_id": ctx.tenant_id,
                     "decision": PermissionDecision.DENY,
+                    "phase": "decision",
+                    "code": exc.code,
                     "ok": False,
                     "error_code": exc.code,
                     "duration_ms": round((time.monotonic() - started_at) * 1000, 2),
@@ -507,7 +557,8 @@ class ToolRuntime:
                 "user_id": ctx.user_id,
                 "tenant_id": ctx.tenant_id,
                 "decision": prepared.decision,
-                "stage": "authorized",
+                "phase": "decision",
+                "code": "APPROVED",
                 "duration_ms": round((time.monotonic() - started_at) * 1000, 2),
                 "argument_keys": argument_keys(call.arguments),
             }
@@ -564,9 +615,16 @@ ORDERS: dict[tuple[str, str], dict[str, Any]] = {
 }
 # 示例退款结果存储：用于体现按订单幂等返回的写操作效果。
 REFUNDS: dict[tuple[str, str], dict[str, Any]] = {}
+# 示例账户数据源：余额按租户和账户共同隔离，避免跨租户转账。
+ACCOUNTS: dict[tuple[str, str], float] = {
+    ("tenant_a", "ACC-A-123456"): 100_000.0,
+    ("tenant_a", "ACC-A-654321"): 5_000.0,
+    ("tenant_a", "ACC-A-888888"): 20_000.0,
+    ("tenant_b", "ACC-B-111111"): 50_000.0,
+}
 
 
-async def get_order(args: StrictArgs, ctx: ExecutionContext) -> dict[str, Any]:
+async def get_order(_tool_call_id: str, args: StrictArgs, ctx: ExecutionContext) -> dict[str, Any]:
     # 查询处理器：在租户隔离范围内读取订单，返回内容由运行时统一脱敏。
     assert isinstance(args, GetOrderArgs)
     order = ORDERS.get((ctx.tenant_id, args.order_id))
@@ -585,7 +643,7 @@ async def check_refund(args: StrictArgs, ctx: ExecutionContext) -> None:
         raise PolicyDenied("BUSINESS_RULE_DENIED", "退款金额超过可退金额")
 
 
-async def create_refund(args: StrictArgs, ctx: ExecutionContext) -> dict[str, Any]:
+async def create_refund(_tool_call_id: str, args: StrictArgs, ctx: ExecutionContext) -> dict[str, Any]:
     # 退款写入处理器：按租户订单维度幂等创建并返回退款受理结果。
     assert isinstance(args, CreateRefundArgs)
     key = (ctx.tenant_id, args.order_id)
@@ -603,9 +661,60 @@ async def create_refund(args: StrictArgs, ctx: ExecutionContext) -> dict[str, An
     return result
 
 
-async def run_shell(args: StrictArgs, _ctx: ExecutionContext) -> dict[str, Any]:
+async def run_shell(_tool_call_id: str, args: StrictArgs, _ctx: ExecutionContext) -> dict[str, Any]:
     assert isinstance(args, RunShellArgs)
     raise AssertionError("disabled shell tool must not execute")
+
+
+async def transfer_precheck(args: StrictArgs, context: ExecutionContext) -> None:
+    # 转账业务预检：在修改余额前按教学额度规则和账户余额顺序执行校验。
+    assert isinstance(args, TransferArgs)
+    if 50_000 < args.amount <= 80_000:
+        raise PolicyDenied("EXCEED_LIMIT", "转账金额命中教学额度拦截规则")
+    balance = ACCOUNTS.get((context.tenant_id, args.from_account), 0.0)
+    if balance < args.amount:
+        raise PolicyDenied("INSUFFICIENT_BALANCE", "转出账户余额不足")
+
+
+async def transfer_handler(
+    tool_call_id: str,
+    args: StrictArgs,
+    context: ExecutionContext,
+) -> dict[str, Any]:
+    # 转账处理器：在运行时超时边界内模拟慢调用并原子更新同一转出账户的余额。
+    assert isinstance(args, TransferArgs)
+    if args.amount > 80_000:
+        await asyncio.sleep(3.0)
+    from_key = (context.tenant_id, args.from_account)
+    to_key = (context.tenant_id, args.to_account)
+    if to_key not in ACCOUNTS:
+        raise PolicyDenied("ACCOUNT_NOT_FOUND", "转入账户不存在")
+    ACCOUNTS[from_key] -= args.amount
+    ACCOUNTS[to_key] += args.amount
+    return {
+        "txn_id": tool_call_id[-6:],
+        "from": args.from_account,
+        "to": args.to_account,
+        "amount": args.amount,
+        "status": "accepted",
+    }
+
+
+def reset_side_effects() -> None:
+    # 清理测试和离线演示产生的退款副作用，不重置由测试管理的账户余额。
+    REFUNDS.clear()
+
+
+def base_context(**overrides: Any) -> ExecutionContext:
+    # 构造测试与演示共用的可信执行上下文，调用方只能覆盖服务端显式传入的字段。
+    defaults: dict[str, Any] = {
+        "trace_id": "trace_transfer",
+        "user_id": "u_transfer",
+        "tenant_id": "tenant_a",
+        "permissions": frozenset({"order:read", "refund:create", "shell:run"}),
+        "allowed_tools": frozenset({"get_order", "create_refund", "run_shell"}),
+    }
+    return ExecutionContext(**{**defaults, **overrides})
 
 
 def build_governance() -> tuple[ToolRuntime, ApprovalStore, AuditSink]:
@@ -658,8 +767,30 @@ def build_governance() -> tuple[ToolRuntime, ApprovalStore, AuditSink]:
             handler=run_shell,
             canonical_target=lambda args, ctx: "shell",
         ),
+        ToolDefinition(
+            name="transfer",
+            description="在当前租户内从一个账户向另一个账户转账。",
+            parameters_model=TransferArgs,
+            policy=ToolPolicy(
+                effect=Effect.WRITE,
+                risk=Risk.HIGH,
+                permission="transfer:execute",
+                requires_approval=True,
+                timeout_seconds=2.0,
+                max_retries=0,
+                idempotent=False,
+            ),
+            handler=transfer_handler,
+            precheck=transfer_precheck,
+            canonical_target=lambda args, ctx: f"{ctx.tenant_id}:{args.from_account}",
+        ),
     ]
     return ToolRuntime(tools, PermissionEngine(), approvals, audit), approvals, audit
+
+
+def build_runtime() -> tuple[ToolRuntime, ApprovalStore, AuditSink]:
+    # 提供作业验收所需的运行时装配入口，复用正式治理组件而非测试替身。
+    return build_governance()
 
 
 async def main() -> None:
