@@ -16,6 +16,7 @@ MAX_ROUNDS = 4
 SYSTEM_PROMPT = (
     "你是订单助手。查询订单时必须调用 get_order，不能编造结果。"
     "如果订单不存在，可以根据用户目标调整计划；不能把同一个失败调用盲目重试。"
+    "如需查询物流，必须先调用 get_order，且仅在工具结果 status=shipped 时调用 get_logistics。"
 )
 
 

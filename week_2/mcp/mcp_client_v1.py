@@ -9,20 +9,26 @@ from mcp.client.stdio import stdio_client
 
 
 base_dir = Path(__file__).parent
+MAX_RESULT_CHARS = 2_000
 
 
-def result_payload(result: Any, max_chars: int = 2_000) -> dict[str, Any]:
+def result_payload(result: Any, max_chars: int = MAX_RESULT_CHARS) -> dict[str, Any]:
     """将不可信的 MCP Tool Result 归一化，并限制返回内容大小。"""
     if result.is_error:
-        text = getattr(result.content[0], "text", "MCP_TOOL_ERROR")
+        content = getattr(result, "content", [])
+        text = getattr(content[0], "text", "MCP_TOOL_ERROR") if content else "MCP_TOOL_ERROR"
         return {"ok": False, "code": "MCP_TOOL_ERROR", "message": text[:max_chars]}
 
     value = result.structured_content
     if value is None:
-        value = {"text": getattr(result.content[0], "text", "")}
+        content = getattr(result, "content", [])
+        value = {"text": getattr(content[0], "text", "") if content else ""}
 
-    if len(json.dumps(value, ensure_ascii=False)) > max_chars:
+    serialized = json.dumps(value, ensure_ascii=False)
+    if len(serialized) > max_chars:
         return {"ok": False, "code": "RESULT_TOO_LARGE"}
+    if not isinstance(value, dict):
+        return {"ok": False, "code": "INVALID_TOOL_RESULT"}
     return dict(value)
 
 

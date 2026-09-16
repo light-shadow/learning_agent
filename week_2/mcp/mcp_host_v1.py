@@ -179,7 +179,7 @@ async def discover_tools(
     result = await client.list_tools()
     definitions: dict[str, ToolDefinition] = {}
     for remote in result.tools:
-        qualified_name = f"{server_id}_{remote.name}"
+        qualified_name = f"{server_id}.{remote.name}"
 
         async def handler(
             tool_call_id: str,
@@ -207,7 +207,17 @@ async def run_agent(
     max_rounds: int = 4,
 ) -> str:
     """持续执行模型决策、Runtime 调用和结果回写，直到模型返回文本。"""
-    messages: list[dict[str, Any]] = [{"role": "user", "content": user_input}]
+    messages: list[dict[str, Any]] = [
+        {
+            "role": "system",
+            "content": (
+                "你是订单助手。查询物流前，必须先调用 orders.get_order 查询该订单。"
+                "只有工具结果中的 status 严格等于 shipped 时，才能调用 orders.get_logistics。"
+                "不要猜测订单或物流状态。"
+            ),
+        },
+        {"role": "user", "content": user_input},
+    ]
     model_tools = [tool.to_model_tool() for tool in tools.values()]
 
     for round_no in range(1, max_rounds + 1):
@@ -277,14 +287,14 @@ async def main() -> None:
 
         runtime = ToolRuntime()
         success = await runtime.execute(
-            ToolCall("call_success", "orders_get_order", {"order_id": "ord_1001"}),
+            ToolCall("call_success", "orders.get_order", {"order_id": "ord_1001"}),
             tools,
         )
         assert success["ok"] is True
         print("CONTRACT SUCCESS", success["status"])
 
         rejected = await runtime.execute(
-            ToolCall("call_reject", "orders_get_order", {}),
+            ToolCall("call_reject", "orders.get_order", {}),
             tools,
         )
         assert rejected["code"] == "INVALID_ARGUMENT"
@@ -293,7 +303,7 @@ async def main() -> None:
         failed = await runtime.execute(
             ToolCall(
                 "call_fail",
-                "orders_get_order",
+                "orders.get_order",
                 {"order_id": "ord_missing"},
             ),
             tools,
