@@ -34,6 +34,11 @@ class StudyStore:
             "SELECT source_id FROM sources WHERE content_hash = ?", (source.content_hash,)
         ).fetchone()
         if existing:
+            with self._connection:
+                self._connection.execute(
+                    "UPDATE sources SET title = ? WHERE source_id = ?",
+                    (source.title, existing["source_id"]),
+                )
             return str(existing["source_id"]), False
         source_id = self._new_id("src")
         now = self._now()
@@ -197,6 +202,21 @@ class StudyStore:
                  ON m.concept_id = c.concept_id AND m.learner_id = ?
                ORDER BY mastery ASC, m.last_answered_at ASC""",
             (learner_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def list_attempt_history(self, learner_id: str, source_id: str, limit: int = 50) -> list[dict[str, Any]]:
+        """读取指定 PDF 下该学习者已经提交的答题记录，按最新作答时间倒序返回。"""
+        rows = self._connection.execute(
+            """SELECT a.attempt_id, a.question_id, a.answer, a.score, a.status, a.feedback, a.created_at,
+                      q.question_type, q.prompt, c.title AS concept_title
+               FROM attempts a
+               JOIN questions q ON q.question_id = a.question_id
+               JOIN concepts c ON c.concept_id = q.concept_id
+               WHERE a.learner_id = ? AND c.source_id = ?
+               ORDER BY a.created_at DESC
+               LIMIT ?""",
+            (learner_id, source_id, limit),
         ).fetchall()
         return [dict(row) for row in rows]
 

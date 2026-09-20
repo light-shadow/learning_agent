@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+import logging
 from dataclasses import dataclass
 from typing import Any, Callable
 from uuid import uuid4
@@ -12,21 +13,20 @@ from pydantic import Field, ValidationError
 from .errors import StudyError
 from .model_adapter import JsonModel, OpenAICompatibleModel
 from .models import AttemptOutcome, QuestionType, StrictModel, ToolCall, ToolResult
-from .readers import fetch_web_source, read_local_source
+from .profile import StudyProfile
+from .readers import read_local_source
 from .services import extract_concepts, generate_questions, grade_short_answer
 from .storage import StudyStore
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class IngestInput(StrictModel):
     """本地资料导入参数。"""
 
     path: str = Field(min_length=1, max_length=1000)
-
-
-class WebInput(StrictModel):
-    """网页导入参数。"""
-
-    url: str = Field(min_length=1, max_length=2000)
+    display_title: str | None = Field(default=None, max_length=160)
 
 
 class SourceInput(StrictModel):
@@ -86,10 +86,13 @@ class ToolRegistry:
 class StudyRuntime:
     """所有资料读取、知识处理和作答评分的唯一执行入口。"""
 
-    def __init__(self, store: StudyStore, model: JsonModel | None = None) -> None:
-        """装配存储、可选模型和工具注册表。"""
+    def __init__(
+        self, store: StudyStore, model: JsonModel | None = None, profile: StudyProfile | None = None
+    ) -> None:
+        """装配存储、模型服务、学习画像和工具注册表。"""
         self._store = store
         self._model = model or OpenAICompatibleModel()
+        self._profile = profile or StudyProfile.load()
         self._registry = ToolRegistry()
         self._handler_calls: dict[str, int] = {}
         self._register_tools()
@@ -100,6 +103,7 @@ class StudyRuntime:
         snapshot = self._registry.snapshot(context.allowed_tools)
         started_at = time.perf_counter()
         source_refs: list[str] = []
+        LOGGER.info("tool_invocation_started tool_call_id=%s tool_name=%s", call.tool_call_id, call.name)
         try:
             tool = snapshot.get(call.name)
             if tool is None:
@@ -149,6 +153,13 @@ class StudyRuntime:
             list(call.arguments),
             result.source_refs,
         )
+        LOGGER.info(
+            "tool_invocation_completed tool_call_id=%s tool_name=%s code=%s duration_ms=%d",
+            call.tool_call_id,
+            call.name,
+            result.code,
+            int((time.perf_counter() - started_at) * 1000),
+        )
         return result
 
     def grade(self, learner_id: str, question_id: str, answer: str) -> AttemptOutcome:
@@ -172,31 +183,22 @@ class StudyRuntime:
         return self._handler_calls.get(tool_name, 0)
 
     def _register_tools(self) -> None:
-        """注册首版全部资料和学习闭环工具。"""
-        self._registry.register(ToolDefinition("ingest_pdf", IngestInput, self._ingest_local))
-        self._registry.register(ToolDefinition("ingest_docx", IngestInput, self._ingest_local))
-        self._registry.register(ToolDefinition("fetch_webpage", WebInput, self._ingest_web))
+        """注册 PDF 资料与 AI Agent 学习闭环工具。"""
+        self._registry.register(ToolDefinition("ingest_pdf", IngestInput, self._ingest_pdf))
         self._registry.register(ToolDefinition("extract_concepts", SourceInput, self._extract_concepts))
         self._registry.register(ToolDefinition("generate_quiz", SourceInput, self._generate_quiz))
         self._registry.register(ToolDefinition("grade_answer", GradeInput, self._grade_answer))
 
-    def _ingest_local(self, arguments: StrictModel) -> dict[str, Any]:
-        """读取 PDF 或 DOCX 并持久化受控文本块。"""
-        source = read_local_source(arguments.path)  # type: ignore[attr-defined]
+    def _ingest_pdf(self, arguments: StrictModel) -> dict[str, Any]:
+        """读取 AI Agent 学习 PDF 并持久化受控文本块。"""
+        source = read_local_source(arguments.path, arguments.display_title)  # type: ignore[attr-defined]
         source_id, created = self._store.add_source(source)
-        return {
-            "source_id": source_id,
-            "created": created,
-            "source_type": source.source_type.value,
-            "title": source.title,
-            "chunk_count": len(source.chunks),
-            "source_refs": [source_id],
-        }
-
-    def _ingest_web(self, arguments: StrictModel) -> dict[str, Any]:
-        """抓取静态网页并持久化受控正文。"""
-        source = fetch_web_source(arguments.url)  # type: ignore[attr-defined]
-        source_id, created = self._store.add_source(source)
+        LOGGER.info(
+            "pdf_source_saved source_id=%s created=%s chunk_count=%d",
+            source_id,
+            created,
+            len(source.chunks),
+        )
         return {
             "source_id": source_id,
             "created": created,
@@ -211,8 +213,9 @@ class StudyRuntime:
         source_id = arguments.source_id  # type: ignore[attr-defined]
         if not self._store.get_source(source_id):
             raise StudyError("SOURCE_NOT_FOUND", "资料不存在")
-        concepts, mode = extract_concepts(self._store.get_chunks(source_id), self._model)
+        concepts, mode = extract_concepts(self._store.get_chunks(source_id), self._model, self._profile)
         concept_ids = self._store.replace_concepts(source_id, concepts)
+        LOGGER.info("concepts_saved source_id=%s concept_count=%d mode=%s", source_id, len(concept_ids), mode)
         return {"source_id": source_id, "concept_ids": concept_ids, "mode": mode, "source_refs": [source_id]}
 
     def _generate_quiz(self, arguments: StrictModel) -> dict[str, Any]:
@@ -221,8 +224,9 @@ class StudyRuntime:
         concepts = self._store.list_concepts(source_id)
         if not concepts:
             raise StudyError("CONCEPTS_NOT_READY", "请先执行 extract_concepts")
-        questions, mode = generate_questions(concepts, self._model)
+        questions, mode = generate_questions(concepts, self._model, self._profile)
         question_ids = self._store.add_questions(questions)
+        LOGGER.info("questions_saved source_id=%s question_count=%d mode=%s", source_id, len(question_ids), mode)
         return {"source_id": source_id, "question_ids": question_ids, "mode": mode, "source_refs": [source_id]}
 
     def _grade_answer(self, arguments: StrictModel) -> dict[str, Any]:
@@ -231,22 +235,32 @@ class StudyRuntime:
         if question is None:
             raise StudyError("QUESTION_NOT_FOUND", "题目不存在")
         answer = arguments.answer.strip()  # type: ignore[attr-defined]
+        LOGGER.info(
+            "answer_received learner_id=%s question_id=%s question_type=%s answer_length=%d",
+            arguments.learner_id,  # type: ignore[attr-defined]
+            question["question_id"],
+            question["question_type"],
+            len(answer),
+        )
         question_type = QuestionType(question["question_type"])
         if question_type is QuestionType.SHORT_ANSWER:
-            grade = grade_short_answer(question, answer, self._model)
-            if grade is None:
-                score = None
-                status = "manual_review"
-                feedback = f"离线模式无法可靠评分简答。参考要点：{question['explanation']}"
-            else:
-                score = grade.score
-                status = "correct" if score >= 0.6 else "incorrect"
-                feedback = grade.feedback
+            grade = grade_short_answer(question, answer, self._model, self._profile)
+            score = grade.score
+            status = "correct" if score >= 0.6 else "incorrect"
+            feedback = grade.feedback
         else:
             score = 1.0 if _normalize(answer) == _normalize(question["answer"]) else 0.0
             status = "correct" if score == 1.0 else "incorrect"
             feedback = question["explanation"] if score else f"答案不正确。{question['explanation']}"
         mastery = self._store.save_attempt(arguments.learner_id, question, answer, score, status, feedback)  # type: ignore[attr-defined]
+        LOGGER.info(
+            "answer_graded learner_id=%s question_id=%s status=%s score=%s mastery=%s",
+            arguments.learner_id,  # type: ignore[attr-defined]
+            question["question_id"],
+            status,
+            score,
+            mastery,
+        )
         return AttemptOutcome(
             question_id=question["question_id"],
             question_type=question_type,

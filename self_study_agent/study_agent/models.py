@@ -15,11 +15,9 @@ class StrictModel(BaseModel):
 
 
 class SourceType(str, Enum):
-    """首版允许的资料来源类型。"""
+    """当前版本允许的资料来源类型。"""
 
     PDF = "pdf"
-    DOCX = "docx"
-    WEB = "web"
 
 
 class QuestionType(str, Enum):
@@ -57,7 +55,7 @@ class SourceChunk(StrictModel):
 
 
 class ConceptDraft(StrictModel):
-    """模型或离线规则生成的知识点。"""
+    """模型生成并经契约校验的知识点。"""
 
     title: str = Field(min_length=1, max_length=120)
     summary: str = Field(min_length=1, max_length=800)
@@ -91,7 +89,7 @@ class AttemptOutcome(StrictModel):
 
     question_id: str
     question_type: QuestionType
-    status: Literal["correct", "incorrect", "manual_review"]
+    status: Literal["correct", "incorrect"]
     score: float | None
     feedback: str
     mastery: float | None
