@@ -6,6 +6,6 @@ tmp
 __pycache__/
 .pytest_cache/
 *.py[cod]
-!/week_2/pi/agent-tool-runtime-pi-v2-修复超时 bug/
-!/week_2/pi/agent-tool-runtime-pi-v2-带有超时 bug/
-!/.codex-output/
+/week_2/pi/agent-tool-runtime-pi-v2-修复超时 bug/
+/week_2/pi/agent-tool-runtime-pi-v2-带有超时 bug/
+/.codex-output/
