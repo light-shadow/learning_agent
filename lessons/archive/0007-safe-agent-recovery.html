@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>第 7 课：让 Agent 中断后安全续跑</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Lesson 0007 · 约 15 分钟</p>
+    <h1>让 Agent 中断后安全续跑</h1>
+    <p class="lead">本课胜利条件：面对一次中断，你能判断 Agent 应当续跑、等待人工核查，还是明确拒绝恢复。</p>
+    <aside class="callout">
+      <strong>核心误区：</strong><code>--continue</code> 能让 Agent 记住对话，不代表它知道文件是否已被写入、测试是否真正结束、上次批准是否仍有效。可靠恢复必须先核对现场。<a href="../../week3/3-3%20State%20Machine%20%E4%B8%8E%20Checkpoint.pdf">课程讲义 P1-P5</a>
+    </aside>
+    <h2>先建立正确的心智模型</h2>
+    <div class="grid">
+      <article class="card"><span class="tag">模型上下文</span><h3>会话续接</h3><p>让模型读回消息链，知道此前讨论和工具结果。它解决“模型记不记得”。</p></article>
+      <article class="card"><span class="tag">业务事实</span><h3>任务恢复</h3><p>用状态、步骤记录和 Checkpoint 核对现场，决定是否允许下一次工具调用。它解决“程序敢不敢继续”。</p></article>
+    </div>
+    <p>这不是重复存储：前者用于理解上下文，后者用于实施工程规则。比如模型说“补丁还没执行”，但磁盘上的文件可能已经改了。</p>
+    <h2>状态机只管阶段，不替你证明完成</h2>
+    <table>
+      <thead><tr><th>状态</th><th>含义</th><th>不能推断什么</th></tr></thead>
+      <tbody>
+        <tr><td><code>running</code></td><td>正在分析或决定下一步。</td><td>不等于没有工具在执行。</td></tr>
+        <tr><td><code>waiting_tool</code></td><td>已经发起工具调用，等待结果。</td><td>不等于结果最终可用。</td></tr>
+        <tr><td><code>tool_failed</code></td><td>一次工具调用失败。</td><td>不等于整个任务 <code>failed</code>。</td></tr>
+        <tr><td><code>waiting_approval</code></td><td>具体写操作尚未获批。</td><td>不等于 <code>cancelled</code>，更不能提前写入。</td></tr>
+        <tr><td><code>completed</code></td><td>完成契约已被满足。</td><td>不能只因 <code>agent_end</code> 或一次工具成功就进入。</td></tr>
+      </tbody>
+    </table>
+    <p>把“任务阶段”和“停止原因”分开：被 <code>INTERRUPTED</code> 的 <code>running</code> 任务可能仍可恢复；只有业务规则和现场核对才能决定它是否可继续。</p>
+    <h2>一次真实中断：应该怎么判断？</h2>
+    <div class="formula">Checkpoint: code = r0, patch 步骤 = pending<br>实际工作区: session-policy.ts 已出现补丁内容<br>退出时机: 写工具返回后、下一份 Checkpoint 保存前</div>
+    <p>这是<strong>结果不明</strong>，而不是“可以再执行一次补丁”。正确动作是：记录版本差异，停止自动推进，要求核查已写入内容、测试影响或人工决定。这样才不会重复修改、拿旧测试证据冒充新版本验证。</p>
+    <h2>Checkpoint 的恢复顺序</h2>
+    <div class="formula">校验存档 → 核对工作区与结果不明操作 → 检查终态/审批/预算<br>→ 还原计划、步骤记录、证据和计数 → 调用 Agent Loop 续跑</div>
+    <p>Checkpoint 应在完整轮次结束后保存，并在进入审批前保存具体待批准动作。保存本身应采用“先临时写入、再替换正式存档”，有格式版本和完整性校验；保存失败就停止推进，保留最近有效存档。</p>
+    <h2>审批不是一条布尔开关</h2>
+    <p>对于 Java/Spring 登录过期边界修复，<code>apply_patch</code> 前应先持久化完整补丁并迁移到 <code>waiting_approval</code>。批准时重新比较补丁参数和关联文件摘要：二者任一变化，旧批准失效，必须再次批准。拒绝则不执行，重启也不能默认把“曾经批准”视为有效。</p>
+    <h2>面试收口</h2>
+    <div class="formula">“我不会把 Session 当作 Checkpoint。<br>Session 恢复模型上下文；Checkpoint 恢复可验证的业务状态。<br>恢复前先校验存档和工作区，结果不明的写操作不自动重放；<br>写操作经过绑定具体参数的审批门禁，任务完成则必须有当前版本的验证证据。”</div>
+    <p>完整字段和验收清单见 <a href="../reference/state-machine-checkpoint-recovery-card.html">State Machine 与 Checkpoint 恢复速查</a>。</p>
+    <h2>检索练习：不看答案先判断</h2>
+    <section class="quiz" data-quiz data-answer="安全暂停" data-correct="正确。INTERRUPTED 描述停止原因；任务仍可能处于 running，并在现场核对通过后恢复。" data-incorrect="暂停不等于任务失败。先保留状态与记录，再判断能否安全恢复。">
+      <h3>1. Agent 在诊断完成后被中断，尚无业务失败证据。任务应首先标为？</h3>
+      <div class="options"><button data-choice="安全暂停">安全暂停</button><button data-choice="任务失败">任务失败</button></div><p class="feedback" aria-live="polite"></p>
+    </section>
+    <section class="quiz" data-quiz data-answer="现场核对" data-correct="正确。记录和真实工作区可能不一致；先确认文件、版本和结果不明操作，才可决定是否续跑。" data-incorrect="直接续接只能恢复对话，不能消除写入与存档之间的差异风险。">
+      <h3>2. Checkpoint 说补丁未写，但源码已经变化。下一步首先做什么？</h3>
+      <div class="options"><button data-choice="现场核对">现场核对</button><button data-choice="直接续接">直接续接</button></div><p class="feedback" aria-live="polite"></p>
+    </section>
+    <section class="quiz" data-quiz data-answer="等待审批" data-correct="正确。批准前、拒绝后，以及授权因补丁或相关文件变化而失效时，写工具都不能执行。" data-incorrect="等待批准是可恢复的业务状态，不等于用户终止任务。">
+      <h3>3. 补丁待批准且关联文件已变化，写操作应保持什么状态？</h3>
+      <div class="options"><button data-choice="等待审批">等待审批</button><button data-choice="取消任务">取消任务</button></div><p class="feedback" aria-live="polite"></p>
+    </section>
+    <h2>本节收束</h2>
+    <p><strong>可靠恢复的顺序始终是：先检查，再恢复；结果不明，先查再做；未经批准，不执行修改；宣布完成，必须有证据。</strong></p>
+    <p class="next">完成三题后，请在对话中按“1/2/3：答案 + 一句理由”回复。我会据此判断是否进入 Sandbox 与执行边界，或先用一个 Java/Spring 修复任务巩固恢复设计。</p>
+    <p class="sources">主材料：<a href="../../week3/3-3%20State%20Machine%20%E4%B8%8E%20Checkpoint.pdf">《3.3 State Machine 与 Checkpoint》</a>。如有不清楚的地方，随时直接问我。</p>
+  </main>
+</body>
+</html>

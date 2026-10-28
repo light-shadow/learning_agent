@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>第 7 课：Python PlanStore 实战</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Lesson 0007 · Python Lab</p>
+    <h1>用 Python 实现一个可验证的 PlanStore</h1>
+    <p class="lead">本课不是伪代码：你现在有一套零第三方依赖、8 个测试全部通过的可运行 Lab。</p>
+
+    <aside class="callout">
+      <strong>Lab 位置：</strong><a href="../practice/python_planstore_lab/README.md">README 与练习说明</a> · <a href="../practice/python_planstore_lab/plan_store.py">PlanStore 实现</a> · <a href="../practice/python_planstore_lab/test_plan_store.py">确定性测试</a>。
+    </aside>
+
+    <h2>运行方式</h2>
+    <div class="formula">cd practice/python_planstore_lab<br>python -X utf8 -m unittest -v</div>
+    <p>本 Lab 只使用 Python 标准库的 <code>dataclasses</code>、<code>Enum</code> 与 <code>unittest</code>。它不会执行外部命令或修改任何业务代码。</p>
+
+    <h2>课程概念如何映射到代码</h2>
+    <table>
+      <thead><tr><th>课程概念</th><th>Python 实现</th><th>关键规则</th></tr></thead>
+      <tbody>
+        <tr><td>Plan / PlanStep</td><td><code>Plan</code>、<code>PlanStep</code> dataclass</td><td>保存目标、依赖、验收标准、状态与证据引用。</td></tr>
+        <tr><td>Evidence</td><td><code>Evidence</code> dataclass</td><td>绑定 <code>step_id</code>、<code>tool_call_id</code>、<code>artifact_version</code>。</td></tr>
+        <tr><td>PlanStore</td><td><code>start</code>、<code>complete</code>、<code>revise</code></td><td>模型没有直接改状态的入口。</td></tr>
+        <tr><td>StepVerifier</td><td><code>criterion_step_verifier</code></td><td>每个 success criterion 都要有已通过证据覆盖。</td></tr>
+        <tr><td>CompletionContract</td><td><code>all_steps_completed_contract</code></td><td>任务级判断独立于单步骤完成。</td></tr>
+      </tbody>
+    </table>
+
+    <h2>从一次修复任务看代码流</h2>
+    <div class="formula">start("s2")<br>  → 检查 s1 是否 COMPLETED<br><br>record_evidence(e2)<br>  → 记录 Runtime 的 target 失败事实<br><br>complete("s2", ["e2"])<br>  → 校验证据归属、版本和 successCriteria<br><br>revise(request)<br>  → 深拷贝 Plan → 替换步骤 → 重连依赖 → 检查无环 → 提交</div>
+    <p>最值得读的测试是 <code>test_revision_rejects_cycle_without_mutating_plan</code>：它证明候选修订有环时，当前计划版本和原步骤状态都不会改变。</p>
+
+    <h2>你下一步可以亲自扩展什么？</h2>
+    <ol>
+      <li>实现 <code>block(step_id, reason)</code> 与 <code>fail(step_id, reason)</code>，并为其写单测。</li>
+      <li>将完成契约收紧为：必须有 s4 的 target / boundary / regression 证据，且 s5 有交付文档证据。</li>
+      <li>增加 <code>PlanRevision</code> 审计记录，保存 replace、rewire、reason 和 evidenceIds。</li>
+      <li>最后才把 Lab 接到真实 Tool Runtime；接线前先为缺少 <code>planStepId</code> 的工具调用写 handler=0 集成测试。</li>
+    </ol>
+
+    <h2>检索练习</h2>
+    <section class="quiz" data-quiz data-answer="拒绝开始" data-correct="正确。s3 的 depends_on 包含 s2，只有 s2 为 COMPLETED 才能开始。" data-incorrect="SKIPPED、FAILED 或 IN_PROGRESS 都不能满足依赖。">
+      <h3>1. s2 尚未 COMPLETED 时，调用 start("s3") 应当？</h3>
+      <div class="options"><button data-choice="允许开始">允许开始</button><button data-choice="拒绝开始">拒绝开始</button></div>
+      <p class="feedback" aria-live="polite"></p>
+    </section>
+    <section class="quiz" data-quiz data-answer="拒绝完成" data-correct="正确。当前代码已经变为 v1，来自 v0 的 TEST / DIFF 证据不能完成修复或验证步骤。" data-incorrect="当前版本证据规则阻止旧测试为新代码背书。">
+      <h3>2. 当前代码版本 v1，s4 只引用 v0 的通过测试，应当？</h3>
+      <div class="options"><button data-choice="允许完成">允许完成</button><button data-choice="拒绝完成">拒绝完成</button></div>
+      <p class="feedback" aria-live="polite"></p>
+    </section>
+    <section class="quiz" data-quiz data-answer="拒绝修订" data-correct="正确。s3b 依赖 s4，而重连后 s4 又依赖 s3b，候选计划形成环；revise() 必须拒绝且当前 Plan 完全不变。" data-incorrect="先画出重连后的边：s3b → s4 和 s4 → s3b 构成依赖环，原子修订不允许部分生效。">
+      <h3>3. 用 s3b 替换 s3 后，s3b 依赖 s4，且重连后 s4 依赖 s3b；候选计划有环，应当？</h3>
+      <div class="options"><button data-choice="提交修订">提交修订</button><button data-choice="拒绝修订">拒绝修订</button></div>
+      <p class="feedback" aria-live="polite"></p>
+    </section>
+
+    <p class="next">完成三题后，把答案发我。接下来你可以选择：我带你逐行讲解 <code>plan_store.py</code>，或你先实现 <code>block()</code>，我来做代码审查。</p>
+  </main>
+</body>
+</html>
+

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Planning 术语速查</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Reference</p>
+    <h1>Planning 术语速查</h1>
+    <p class="lead">面试表达和编码设计共用同一套词汇：模型提议，系统许可；模型声明，证据证明。</p>
+    <table>
+      <thead><tr><th>术语</th><th>简明定义</th><th>工程含义</th></tr></thead>
+      <tbody>
+        <tr><td>Agent Loop</td><td>模型调用工具，读取结果，再决定下一轮的循环。</td><td>管理上下文、工具结果、取消和轮数；它本身不等于任务计划。</td></tr>
+        <tr><td>显式计划</td><td>可保存的子目标、状态、依赖、验收条件与修订历史。</td><td>系统能回答“还差什么”“为什么完成”，而非只保留对话日志。</td></tr>
+        <tr><td>可验收子目标</td><td>完成后产生一个可观察的新事实，而非模糊动作。</td><td>写“确认根因及其源码证据”，不写“分析一下代码”。</td></tr>
+        <tr><td>证据</td><td>工具运行实际产生、可引用、可定位到步骤和版本的事实。</td><td>测试退出码、受控 diff、源码检查结果；模型不能自行编造。</td></tr>
+        <tr><td>完成契约</td><td>任务级交付所必须同时满足的条件。</td><td>例如：当前版本有改动、目标/边界/回归测试都通过、交付说明存在。</td></tr>
+        <tr><td>计划修订</td><td>在前提或约束变化时，原子地替换/补充步骤并改接依赖。</td><td>只改路径，不降低验收标准；携带版本和证据以避免覆盖新计划。</td></tr>
+        <tr><td>工具门禁</td><td>在真正调用工具前由程序执行的许可检查。</td><td>未就绪步骤或缺少 planStepId 时，handler 必须一次也不执行。</td></tr>
+      </tbody>
+    </table>
+    <p class="next">回到 <a href="../lessons/0012-planning-verifiable-task-decomposition.html">第 12 课：Planning 与任务拆解</a>。</p>
+  </main>
+</body>
+</html>
+

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>第 6 课：证明 Planning 真正可交付</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Lesson 0006 · 约 15 分钟</p>
+    <h1>证明 Planning 真正可交付</h1>
+    <p class="lead">本课胜利条件：你能用三层验证说明“计划不是提示词，而是正在生效的执行机制”。</p>
+
+    <aside class="callout">
+      <strong>不要混淆三件事：</strong>单测证明规则；集成测试证明接线；真实运行证明实际环境中的闭环。任何一层通过，都不能自动替代另两层。<a href="../../week3/3.2%20Planning%20%E4%B8%8E%E4%BB%BB%E5%8A%A1%E6%8B%86%E8%A7%A3.pdf">课程讲义 P29-P32</a>
+    </aside>
+
+    <h2>第一层：PlanStore 的确定性规则测试</h2>
+    <p>这层不需要真实模型。直接构造计划、证据和修订请求，验证规则在边界处拒绝错误状态。</p>
+    <table>
+      <thead><tr><th>反例</th><th>期望结果</th><th>它证明什么</th></tr></thead>
+      <tbody>
+        <tr><td>依赖未完成就 start</td><td><code>PLAN_STEP_NOT_READY</code></td><td>就绪性由程序计算，不由模型宣称。</td></tr>
+        <tr><td>无证据申请 complete</td><td><code>PLAN_COMPLETION_REQUIRES_EVIDENCE</code></td><td>模型自述不能改变状态。</td></tr>
+        <tr><td>引用其他步骤证据</td><td><code>PLAN_EVIDENCE_STEP_MISMATCH</code></td><td>证据归属可追溯。</td></tr>
+        <tr><td>引用修改前测试结果</td><td><code>PLAN_EVIDENCE_STALE</code></td><td>交付证明必须对齐当前版本。</td></tr>
+        <tr><td>修订产生环</td><td><code>PLAN_DEPENDENCY_CYCLE</code>，快照不变</td><td>修订是原子提交，不留下半成品状态。</td></tr>
+      </tbody>
+    </table>
+
+    <h2>第二层：Loop 集成测试</h2>
+    <p>PlanStore 单测即使全绿，也不能证明它真的接在执行入口。这里要观察“被拒动作未触达 Runtime”。</p>
+    <div class="formula">缺少 planStepId<br>  → beforeToolCall 返回错误 Tool Result<br>  → Runtime handler 调用次数 = 0<br><br>绑定未就绪步骤<br>  → beforeToolCall 返回 PLAN_STEP_NOT_READY<br>  → Runtime handler 调用次数 = 0</div>
+    <p>还要测试模型提前输出 Final：当 Completion Contract 缺少目标、边界或回归证据时，系统必须注入 Follow-up 继续，而非结束任务。</p>
+
+    <h2>第三层：真实运行留证据</h2>
+    <p>真实运行回答的是“真实模型面对真实仓库和工具时，这条链路是否形成闭环”。它至少应记录：</p>
+    <ol>
+      <li>运行的实际命令、退出码与测试范围。</li>
+      <li>代码版本变化和受控 diff。</li>
+      <li>计划步骤状态、计划修订记录与每步 Evidence 摘要。</li>
+      <li>交付说明实际落盘，以及已验证与未验证项。</li>
+    </ol>
+    <p>真实运行不能用来替代所有边界单测；反过来，脚本测试也不能证明 Hook 在真实 Agent Loop 中没有被绕开。</p>
+
+    <h2>完成契约的最终检查</h2>
+    <div class="formula">可交付 = 当前版本有允许的改动<br>AND target / boundary / regression 证据均通过<br>AND 交付文档存在并说明未验证项<br>AND 任务未因取消、预算或权限限制停止</div>
+    <p>若环境缺少依赖、无法运行某组回归测试，正确结论是“部分验证、具体阻塞原因”，不是“完成”。</p>
+
+    <h2>面试收口</h2>
+    <div class="formula">“我把 Planning 的验收分为三层：<br>第一层用确定性测试验证状态、证据和修订规则；<br>第二层验证 beforeToolCall 真能拦住动作、afterToolCall 真能关联证据、Final 不足真能继续；<br>第三层通过真实任务确认代码、测试、计划记录和交付产物形成闭环。<br>这样我能区分已实现、已验证与未验证。”</div>
+
+    <p>完整矩阵见 <a href="../reference/planning-verification-test-matrix.html">Planning 验收测试矩阵</a>。</p>
+
+    <h2>检索练习：选择正确结论</h2>
+    <section class="quiz" data-quiz data-answer="仍然不足" data-correct="正确。规则单测不能证明门禁位于 Runtime 之前，也不能证明真实模型与工具能形成闭环。" data-incorrect="单测只证明 PlanStore；还需 Loop 集成测试和真实运行。">
+      <h3>1. PlanStore 的所有单测均通过，能否据此证明 Planning 整体可交付？</h3>
+      <div class="options"><button data-choice="已经足够">已经足够</button><button data-choice="仍然不足">仍然不足</button></div>
+      <p class="feedback" aria-live="polite"></p>
+    </section>
+    <section class="quiz" data-quiz data-answer="快照不变" data-correct="正确。修订在候选副本中发现依赖环后应整体拒绝，原计划不能留下部分 skip 或 rewire。" data-incorrect="有环是候选计划校验失败；原计划必须保持原样。">
+      <h3>2. revise_plan 应用后发现依赖图有环，当前 Plan 应当？</h3>
+      <div class="options"><button data-choice="快照不变">快照不变</button><button data-choice="局部生效">局部生效</button></div>
+      <p class="feedback" aria-live="polite"></p>
+    </section>
+    <section class="quiz" data-quiz data-answer="如实阻塞" data-correct="正确。真实运行缺少环境依赖时，报告未验证范围与具体原因；不能把它写成通过或完成。" data-incorrect="环境阻塞不是成功；保留真实原因是可靠交付的一部分。">
+      <h3>3. 真实运行因缺少测试依赖而无法执行回归测试，应当？</h3>
+      <div class="options"><button data-choice="如实阻塞">如实阻塞</button><button data-choice="标记通过">标记通过</button></div>
+      <p class="feedback" aria-live="polite"></p>
+    </section>
+
+    <h2>本节收束</h2>
+    <p><strong>可靠的 Planning 不靠“模型看起来很有条理”，而靠错误动作被拦截、证据能复核、修订能回滚、真实运行可追溯。</strong></p>
+    <p class="next">完成三题后在对话中回复答案与理由。完成本课即完成本 PDF 的 Planning 主线；接下来可选择用一个 Java/Spring 缺陷修复任务实战，或进入下一主题 State Machine 与 Checkpoint。</p>
+  </main>
+</body>
+</html>
+

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PlanStore 状态转换速查</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Reference</p>
+    <h1>PlanStore 状态转换速查</h1>
+    <p class="lead">PlanStore 是计划状态的唯一写入者。模型提交意图，PlanStore 校验后才提交状态变化。</p>
+
+    <table>
+      <thead><tr><th>操作</th><th>允许条件</th><th>拒绝示例</th></tr></thead>
+      <tbody>
+        <tr><td>start(step)</td><td>步骤为 PENDING，且所有 dependsOn 均为 COMPLETED。</td><td><code>PLAN_STEP_NOT_READY</code></td></tr>
+        <tr><td>complete(step, evidenceIds)</td><td>步骤进行中；证据存在、归属正确、版本新鲜，并满足 successCriteria。</td><td><code>PLAN_EVIDENCE_STEP_MISMATCH</code>、<code>PLAN_EVIDENCE_STALE</code></td></tr>
+        <tr><td>block / fail(step)</td><td>记录实际阻塞或失败原因，停止伪造进展。</td><td>不能把预算或权限问题改写成 completed。</td></tr>
+        <tr><td>skip(step)</td><td>没有下游依赖；否则先通过 revise 原子改接依赖。</td><td><code>PLAN_SKIP_REQUIRES_REWIRE</code></td></tr>
+        <tr><td>revise(plan)</td><td>版本一致、有理由和证据；候选计划无环、依赖存在、未超修订预算。</td><td><code>PLAN_VERSION_CONFLICT</code>、<code>PLAN_DEPENDENCY_CYCLE</code></td></tr>
+      </tbody>
+    </table>
+
+    <h2>最小门禁伪代码</h2>
+    <div class="formula">beforeToolCall(call) {<br>  if (!requiresPlanStep(call.name)) return;<br>  String stepId = require(call.arguments, "planStepId");<br>  planStore.assertExecutable(stepId);<br>  call.arguments.remove("planStepId");<br>}<br><br>afterToolCall(call, result) {<br>  evidenceStore.append(fromRuntimeResult(call, result, currentCodeVersion));<br>}</div>
+    <p><code>planStepId</code> 是编排字段，绝不能作为业务参数传给 Runtime。被拒绝时，Runtime handler 的调用次数必须为 0。</p>
+
+    <p class="next">配套课程：<a href="../lessons/0012-planning-verifiable-task-decomposition.html">第 12 课：Planning 与任务拆解</a></p>
+  </main>
+</body>
+</html>
+

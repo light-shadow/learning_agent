@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>第 5 课：Agent Loop 接线与验收</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Lesson 0005 · 约 15 分钟</p>
+    <h1>把计划接进 Agent Loop，不再造第二套执行器</h1>
+    <p class="lead">本课胜利条件：你能指出计划层的四个 Hook，并解释为什么 Tool Result、取消和最大轮数必须仍由原 Agent Loop 管理。</p>
+
+    <aside class="callout">
+      <strong>接线原则：</strong>Planning 是给既有 Agent Loop 加任务状态与验收门禁，不是额外复制一套“模型调用 → 工具执行 → 结果回写”的循环。<a href="../../week3/3.2%20Planning%20%E4%B8%8E%E4%BB%BB%E5%8A%A1%E6%8B%86%E8%A7%A3.pdf">课程讲义 P24-P28</a>
+    </aside>
+
+    <h2>一轮完整的计划化 Loop</h2>
+    <div class="formula">Turn 开始<br>  → prepareNextTurn：注入 Plan 快照（版本 / 就绪步骤 / 最近证据）<br>  → 模型返回 Tool Call<br>  → beforeToolCall：planStepId 存在？步骤就绪？工具允许？<br>      拒绝 → 错误 Tool Result 回写，handler = 0<br>      通过 → 剥离 planStepId，调用 Runtime<br>  → afterToolCall：补全证据元数据，写入 EvidenceStore<br>  → 原 Tool Result 回写给模型<br>  → shouldStopAfterTurn：Completion Contract 是否通过？<br>      否 → Follow-up 继续；是 → COMPLETED</div>
+
+    <h2>四个 Hook 分工</h2>
+    <table>
+      <thead><tr><th>Hook</th><th>计划层新增行为</th><th>一个常见错误</th></tr></thead>
+      <tbody>
+        <tr><td>prepareNextTurn</td><td>刷新当前快照，告诉模型现在能做什么。</td><td>把每轮完整计划历史都追加到上下文，造成膨胀和过期信息。</td></tr>
+        <tr><td>beforeToolCall</td><td>验证 planStepId 与依赖；通过后剥离编排字段。</td><td>先执行 Runtime，再事后发现依赖不满足。</td></tr>
+        <tr><td>afterToolCall</td><td>把真实结果关联到步骤、工具调用和代码版本。</td><td>让模型用自然语言“登记证据”。</td></tr>
+        <tr><td>shouldStopAfterTurn</td><td>由 Completion Contract 判断交付，而不是看模型是否输出 Final。</td><td>模型沉默或说完成，就直接结束。</td></tr>
+      </tbody>
+    </table>
+
+    <h2>最小接线伪代码</h2>
+    <div class="formula">prepareNextTurn(context) {<br>  context.add(planStore.snapshot());<br>}<br><br>beforeToolCall(call) {<br>  if (requiresPlanStep(call.name)) {<br>    String id = requirePlanStepId(call);<br>    planStore.assertExecutable(id);<br>    call.removeArgument("planStepId");<br>  }<br>}<br><br>afterToolCall(call, result) {<br>  evidenceStore.append(toEvidence(call, result, currentCodeVersion));<br>}<br><br>shouldStopAfterTurn() {<br>  return completionContract.verify(currentContext);<br>}</div>
+
+    <h2>两条不能被计划层破坏的边界</h2>
+    <div class="grid">
+      <section class="card"><span class="tag">原始 Tool Result</span><h3>仍须写回模型</h3><p>计划快照只是状态摘要，不能替换命令输出、测试日志和错误信息，否则模型失去排障所需事实。</p></section>
+      <section class="card"><span class="tag">真实停止原因</span><h3>不能伪装完成</h3><p>取消、预算耗尽、权限拒绝和阻塞必须如实输出；完成契约不通过时继续或报告，而非标记 COMPLETED。</p></section>
+    </div>
+
+    <h2>如何证明“接线真的生效”？</h2>
+    <p>只测 PlanStore 规则还不够。还要做 Loop 集成测试，观测边界行为：</p>
+    <ol>
+      <li>受约束工具缺少 <code>planStepId</code>：handler 调用次数必须为 0。</li>
+      <li>绑定未就绪步骤：handler 调用次数必须为 0。</li>
+      <li>模型输出 Final，但目标/边界/回归证据不齐：系统注入 Follow-up 继续，不能停止。</li>
+      <li>完整闭环：Plan 版本变更、证据归属正确、源码真的被改、交付文档真的存在。</li>
+    </ol>
+    <p>更多验收项见 <a href="../reference/agent-loop-planning-integration-checklist.html">Agent Loop 计划接线检查清单</a>。</p>
+
+    <h2>面试表达</h2>
+    <div class="formula">“我不在 Planning 层新建第二个 Agent Loop。<br>我在原 Loop 的四个 Hook 接入：每轮注入快照、调用前门禁、调用后写证据、停止前验收。<br>原 Tool Result、取消、最大轮数和权限仍由原 Loop 管理，因此计划层不会绕过既有安全与可靠性机制。”</div>
+
+    <h2>检索练习：判断接线行为</h2>
+    <section class="quiz" data-quiz data-answer="继续执行" data-correct="正确。Final 只是模型输出；完成契约不满足时应注入 Follow-up，继续收集缺失证据或报告阻塞。" data-incorrect="停止权属于完成契约，而不是模型的自然语言 Final。">
+      <h3>1. 模型输出 Final，但 Completion Contract 发现回归测试证据缺失，应当？</h3>
+      <div class="options"><button data-choice="继续执行">继续执行</button><button data-choice="直接完成">直接完成</button></div>
+      <p class="feedback" aria-live="polite"></p>
+    </section>
+    <section class="quiz" data-quiz data-answer="原始结果" data-correct="正确。计划快照是摘要，原始测试日志和错误 Tool Result 仍要回写，让模型依据真实事实排障。" data-incorrect="快照不能替代工具事实；否则模型无法看到失败断言、日志和命令输出。">
+      <h3>2. afterToolCall 写入 Evidence 后，模型下一轮仍应收到什么？</h3>
+      <div class="options"><button data-choice="计划快照">计划快照</button><button data-choice="原始结果">原始结果</button></div>
+      <p class="feedback" aria-live="polite"></p>
+    </section>
+    <section class="quiz" data-quiz data-answer="如实报告" data-correct="正确。预算耗尽是实际停止原因，不能用 revise_plan 或 completed 掩盖；应如实报告并等待新的授权或输入。" data-incorrect="修订可以改变路径，不能创造预算或掩盖真实停止原因。">
+      <h3>3. 任务在完成契约通过前耗尽轮数预算，应当？</h3>
+      <div class="options"><button data-choice="如实报告">如实报告</button><button data-choice="标记完成">标记完成</button></div>
+      <p class="feedback" aria-live="polite"></p>
+    </section>
+
+    <h2>带走的一句话</h2>
+    <p><strong>用 PlanStore 管任务状态，用 Runtime 产真实事实，用原 Agent Loop 保留执行控制；三者各自负责，不能相互替代。</strong></p>
+    <p class="next">完成三题后在对话中回复答案与理由。下一课将回到全局验收：怎样把 StepVerifier、Completion Contract、真实运行和确定性测试组合成可交付证明。</p>
+  </main>
+</body>
+</html>
+

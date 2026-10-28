@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>计划修订协议速查</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Reference</p>
+    <h1>计划修订协议速查</h1>
+    <p class="lead">修订是对路径和依赖的原子变更，不是把失败隐藏为“完成”，也不是降低验收标准。</p>
+
+    <h2>什么时候修订？</h2>
+    <table>
+      <thead><tr><th>观察到的事实</th><th>正确处置</th><th>是否 revise_plan</th></tr></thead>
+      <tbody>
+        <tr><td>命令文件路径拼错</td><td>修正参数并重跑</td><td>否，局部纠错</td></tr>
+        <tr><td>幂等查询短暂超时</td><td>在预算内受控重试</td><td>否</td></tr>
+        <tr><td>证据推翻根因假设</td><td>替换错误修复步骤，重连下游依赖</td><td>是</td></tr>
+        <tr><td>测试环境缺少 fixture</td><td>新增环境准备步骤</td><td>是</td></tr>
+        <tr><td>用户增加“不得改公共 API”约束</td><td>使冲突步骤失效，修正 diff 并重新验证</td><td>是</td></tr>
+        <tr><td>权限被拒或预算耗尽</td><td>记录 BLOCKED / 停止原因</td><td>否，不能靠改计划绕过限制</td></tr>
+      </tbody>
+    </table>
+
+    <h2>RevisionRequest 最小字段</h2>
+    <div class="formula">expectedVersion：基于哪个计划版本提出<br>reason：哪项新事实改变了前提<br>evidenceIds：支持该事实的真实证据<br>changes：replace / add / rewire 等变更</div>
+
+    <h2>原子提交</h2>
+    <div class="formula">1. 比较 expectedVersion<br>2. 检查 revisionCount &lt; maxRevisions<br>3. 在候选副本应用 replace / add / rewire<br>4. 校验：ID 唯一、依赖存在、无环、约束未被降低<br>5. 全部通过 → version + 1，并追加 revision record<br>任一步失败 → 原 Plan 一个字段不变</div>
+
+    <p class="next">配套课程：<a href="../lessons/0012-planning-verifiable-task-decomposition.html">第 12 课：Planning 与任务拆解</a></p>
+  </main>
+</body>
+</html>
+

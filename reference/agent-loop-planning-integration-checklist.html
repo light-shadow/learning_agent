@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agent Loop 计划接线检查清单</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Reference</p>
+    <h1>Agent Loop 计划接线检查清单</h1>
+    <p class="lead">只在既有 Loop 的执行接缝增加计划能力；模型调用、工具执行和 Tool Result 回写仍由原 Loop 负责。</p>
+
+    <table>
+      <thead><tr><th>Hook</th><th>新增责任</th><th>必须保持不变</th></tr></thead>
+      <tbody>
+        <tr><td>prepareNextTurn</td><td>注入当前计划版本、就绪步骤和最近证据摘要。</td><td>原始 Tool Result 仍在上下文；不反复累加全部历史计划。</td></tr>
+        <tr><td>beforeToolCall</td><td>要求受约束工具携带 planStepId，检查步骤就绪，随后剥离字段。</td><td>已有权限、重复保护、取消检查仍然生效。</td></tr>
+        <tr><td>afterToolCall</td><td>从 Runtime 真实结果补全 stepId、toolCallId、代码版本，写入 EvidenceStore。</td><td>原 Tool Result 正常回写给模型；计划快照不替代它。</td></tr>
+        <tr><td>shouldStopAfterTurn</td><td>调用 CompletionContract 判断任务级交付条件。</td><td>最大轮数、取消、预算与真实停止原因不被伪装为完成。</td></tr>
+      </tbody>
+    </table>
+
+    <h2>必须覆盖的集成测试</h2>
+    <ol>
+      <li>完整闭环：创建计划、收集证据、修订、改源码、验证、落交付文档。</li>
+      <li>受约束工具缺 planStepId：错误 Tool Result，handler 调用次数为 0。</li>
+      <li>绑定未就绪步骤：错误 Tool Result，handler 调用次数为 0。</li>
+      <li>模型输出 Final 但完成契约不满足：注入 Follow-up，不能标记 COMPLETED。</li>
+      <li>预算耗尽、取消或阻塞：保留真实停止原因，不能改写成 completed。</li>
+    </ol>
+
+    <p class="next">配套课程：<a href="../lessons/0012-planning-verifiable-task-decomposition.html">第 12 课：Planning 与任务拆解</a></p>
+  </main>
+</body>
+</html>
+

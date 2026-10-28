@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>第 3 课：PlanStore 与依赖门禁</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Lesson 0003 · 约 15 分钟</p>
+    <h1>PlanStore：让未就绪动作根本无法执行</h1>
+    <p class="lead">本课胜利条件：你能解释为什么状态不能由模型直接改写，并设计一个让 handler 调用次数为 0 的工具门禁。</p>
+
+    <aside class="callout">
+      <strong>本课的核心断言：</strong>“模型说它遵守依赖”不是证据。只有在 Runtime 调用前由程序拒绝未就绪步骤，依赖才是硬约束。<a href="../../week3/3.2%20Planning%20%E4%B8%8E%E4%BB%BB%E5%8A%A1%E6%8B%86%E8%A7%A3.pdf">课程讲义 P18、P26-P31</a>
+    </aside>
+
+    <h2>谁有权改变状态？</h2>
+    <div class="grid">
+      <section class="card"><span class="tag">模型</span><h3>提出意图</h3><p>“开始 s4”“完成 s5，引用 e4/e5/e6”“修订计划”。这些都只是请求。</p></section>
+      <section class="card"><span class="tag">PlanStore</span><h3>执行规则</h3><p>检查依赖、合法状态转换、证据和版本；只有它能提交状态变化。</p></section>
+      <section class="card"><span class="tag">Runtime</span><h3>执行真实动作</h3><p>读取代码、写入 diff、运行测试；它产出结构化事实，而非自己判定任务完成。</p></section>
+      <section class="card"><span class="tag">Verifier</span><h3>判断充分性</h3><p>验证 Evidence 是否满足当前步骤标准，以及整个任务是否符合完成契约。</p></section>
+    </div>
+
+    <h2>状态机的最小规则</h2>
+    <div class="formula">PENDING --(依赖全部 COMPLETED)--> IN_PROGRESS<br>IN_PROGRESS --(证据充分)--> COMPLETED<br>IN_PROGRESS --(真实阻塞)--> BLOCKED<br>IN_PROGRESS --(真实失败)--> FAILED</div>
+    <p><code>SKIPPED</code> 不等于 <code>COMPLETED</code>：下游步骤若依赖被跳过的步骤，仍不能开始。必须先修订计划，把下游依赖原子地改接到替代步骤。</p>
+
+    <h2>Java 8 风格：只暴露受控操作</h2>
+    <div class="formula">public void start(String stepId) {<br>  PlanStep step = requireStep(stepId);<br>  if (step.getStatus() != PENDING || !allDependenciesCompleted(step)) {<br>    throw new PlanException("PLAN_STEP_NOT_READY");<br>  }<br>  step.setStatus(IN_PROGRESS);<br>}<br><br>public void complete(String stepId, List&lt;String&gt; evidenceIds) {<br>  requireInProgress(stepId);<br>  evidenceVerifier.verify(stepId, evidenceIds, currentCodeVersion());<br>  requireStep(stepId).setStatus(COMPLETED);<br>}</div>
+    <p>这不是完整实现；它刻意省略模型的“聪明”。真正重要的是：<strong>没有通过方法校验，就没有状态变化。</strong>完整规则见 <a href="../reference/planstore-state-transitions.html">PlanStore 状态转换速查</a>。</p>
+
+    <h2>把门禁接入 Agent Loop</h2>
+    <div class="formula">一轮开始 → prepareNextTurn：刷新计划快照<br>模型返回 Tool Call → beforeToolCall：检查 planStepId 与步骤就绪性<br>通过 → Runtime 执行（先剥离 planStepId）<br>拒绝 → 写回错误 Tool Result，handler 调用次数 = 0<br>执行结束 → afterToolCall：补全 stepId / toolCallId / 代码版本，写入 Evidence</div>
+    <p>这里的 <code>planStepId</code> 是编排元数据，不属于业务工具参数。例如 <code>run_test</code> 最终收到的是测试范围，而不是计划步骤 ID。</p>
+
+    <h2>为什么“handler 调用次数 = 0”这么重要？</h2>
+    <p>如果先执行测试、写文件或改代码，再事后发现步骤未就绪，约束已失效，副作用也可能无法撤销。真正的验收不是“错误被记录了”，而是<strong>错误动作从未触达 Runtime</strong>。</p>
+    <p>在面试中可以这样表达：<strong>“我将计划校验放在 beforeToolCall，失败时构造 Tool Result 回写给模型，但不进入业务 handler；因此依赖检查是执行许可而非提示词约定。”</strong></p>
+
+    <h2>检索练习：判断门禁结果</h2>
+    <section class="quiz" data-quiz data-answer="拒绝开始" data-correct="正确。s3 只依赖 COMPLETED；s2 为 SKIPPED 不满足依赖，必须先修订并改接依赖。" data-incorrect="SKIPPED 表示未完成且不能充当前置。先 revise，再开始下游步骤。">
+      <h3>1. s3 依赖 s2，但 s2 状态是 SKIPPED；模型申请 start(s3)，应当？</h3>
+      <div class="options"><button data-choice="允许开始">允许开始</button><button data-choice="拒绝开始">拒绝开始</button></div>
+      <p class="feedback" aria-live="polite"></p>
+    </section>
+    <section class="quiz" data-quiz data-answer="拒绝调用" data-correct="正确。受约束的 run_test 缺少 planStepId，beforeToolCall 应直接返回错误，handler 调用次数为 0。" data-incorrect="这不是让模型下次注意的提示；必须在 Runtime 前拒绝，避免真实副作用发生。">
+      <h3>2. run_test 是受约束工具，但调用缺少 planStepId，应当？</h3>
+      <div class="options"><button data-choice="允许调用">允许调用</button><button data-choice="拒绝调用">拒绝调用</button></div>
+      <p class="feedback" aria-live="polite"></p>
+    </section>
+    <section class="quiz" data-quiz data-answer="剥离字段" data-correct="正确。planStepId 只用于编排校验；校验通过后剥离，避免污染 Runtime 的业务参数契约。" data-incorrect="Runtime 不应感知计划编排字段。它只执行自己的业务工具契约。">
+      <h3>3. beforeToolCall 校验 planStepId 通过后，传入 Runtime 前应当？</h3>
+      <div class="options"><button data-choice="保留字段">保留字段</button><button data-choice="剥离字段">剥离字段</button></div>
+      <p class="feedback" aria-live="polite"></p>
+    </section>
+
+    <h2>带走的一句话</h2>
+    <p><strong>PlanStore 是计划状态的唯一真相源；beforeToolCall 是行动许可点；afterToolCall 是证据入库点。</strong></p>
+    <p class="next">完成三题后回复答案和理由。下一课将处理“失败后何时局部纠错、何时 revise_plan”，并设计原子修订与版本冲突保护。</p>
+  </main>
+</body>
+</html>
+

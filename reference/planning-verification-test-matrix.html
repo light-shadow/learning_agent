@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Planning 验收测试矩阵</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Reference</p>
+    <h1>Planning 验收测试矩阵</h1>
+    <p class="lead">规则正确、接线正确、真实运行正确，是三种不同的结论，缺一不可。</p>
+
+    <table>
+      <thead><tr><th>层级</th><th>必须证明</th><th>代表性观察</th></tr></thead>
+      <tbody>
+        <tr><td>PlanStore 确定性测试</td><td>状态机、证据、依赖和修订规则正确。</td><td>未就绪 start 被拒；旧版本证据被拒；有环修订后快照完全不变。</td></tr>
+        <tr><td>Loop 集成测试</td><td>门禁真的位于 Runtime 之前，证据与停止契约真的接线。</td><td>缺 planStepId / 未就绪时 handler 调用次数为 0；Final 不足时 Follow-up 继续。</td></tr>
+        <tr><td>真实运行</td><td>真实模型、真实工具、真实代码与实际环境能形成闭环。</td><td>源码真的改动；测试真的运行；计划与证据摘要、交付文档真实存在。</td></tr>
+      </tbody>
+    </table>
+
+    <h2>报告格式：不要把“做了”写成“验证了”</h2>
+    <div class="formula">已实现：哪些类型、Handler、Hook、测试被加入<br>已验证：运行了什么命令，exit code 是什么，观察到什么行为<br>未验证：环境限制、预算限制、未覆盖的真实路径及其原因</div>
+
+    <h2>高价值反例</h2>
+    <ol>
+      <li>缺证据申请完成 → <code>PLAN_COMPLETION_REQUIRES_EVIDENCE</code>。</li>
+      <li>证据归属其他步骤 → <code>PLAN_EVIDENCE_STEP_MISMATCH</code>。</li>
+      <li>旧版本通过结果 → <code>PLAN_EVIDENCE_STALE</code>。</li>
+      <li>修订形成依赖环 → <code>PLAN_DEPENDENCY_CYCLE</code>，整个计划不变。</li>
+      <li>工具门禁拒绝 → Runtime handler 调用次数为 0。</li>
+    </ol>
+
+    <p class="next">配套课程：<a href="../lessons/0012-planning-verifiable-task-decomposition.html">第 12 课：Planning 与任务拆解</a></p>
+  </main>
+</body>
+</html>
+

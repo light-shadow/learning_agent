@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>第 1 课：何时给 Coding Agent 加显式计划</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Lesson 0001 · 约 10 分钟</p>
+    <h1>何时给 Coding Agent 加显式计划</h1>
+    <p class="lead">这节课的胜利条件：面对一个任务，你能在一分钟内选对执行结构，并用一句系统设计语言说明理由。</p>
+
+    <aside class="callout">
+      <strong>先记住：</strong>Planning 不是“要求模型想得更仔细”。它是让系统保存并检查：为哪个子目标行动、哪些前置已满足、什么证据足以交付。<a href="../../week3/3.2%20Planning%20%E4%B8%8E%E4%BB%BB%E5%8A%A1%E6%8B%86%E8%A7%A3.pdf">课程讲义 P04、P07</a>
+    </aside>
+
+    <h2>一张选择表</h2>
+    <table>
+      <thead><tr><th>任务特征</th><th>优先结构</th><th>后端例子</th></tr></thead>
+      <tbody>
+        <tr><td>一次明确操作即可完成</td><td>直接 Tool Calling</td><td>查询一个订单状态</td></tr>
+        <tr><td>步骤与异常分支能在开始前固定</td><td>固定 Workflow</td><td>字段和校验规则固定的数据导入</td></tr>
+        <tr><td>下一步取决于刚获得的工具结果</td><td>Agent Loop</td><td>读取失败日志后继续定位实现</td></tr>
+        <tr><td>还须持续追踪多个子目标、依赖与交付条件</td><td>Loop + 显式计划</td><td>跨模块修复并做分层验证</td></tr>
+      </tbody>
+    </table>
+    <p class="sources">这一区分来自课程讲义 P11-P12；ReAct 说明了“行动结果影响后续推理”的循环机制，但循环本身并不提供可审计的计划状态。<a href="https://arxiv.org/abs/2210.03629">ReAct 原论文</a></p>
+
+    <h2>关键边界：Loop ≠ Planning</h2>
+    <div class="grid">
+      <section class="card"><span class="tag">Loop</span><h3>回答“下一轮怎么办？”</h3><p>将工具结果写回上下文，模型据此决定下一轮调用。</p></section>
+      <section class="card"><span class="tag">Planning</span><h3>回答“任务还差什么？”</h3><p>保存步骤、依赖、证据和完成标准，并由程序检查状态转换。</p></section>
+    </div>
+    <p>因此，长程修复任务不是因为“模型会依据测试失败调整”就必然需要计划；只有当系统必须持续回答<strong>做到哪一步、哪些验证仍欠缺、能否交付</strong>时，才加计划层。</p>
+
+    <h2>把模糊动作改成工程事实</h2>
+    <div class="formula">动作：跑测试  →  子目标：target / boundary / regression 三个范围均以 exit code 0 在当前代码版本通过</div>
+    <p>左边记录“做过什么”，右边规定“完成后新出现了什么事实，以及用什么证据证明”。这正是面试中把“我会拆任务”讲具体的分界线。详见 <a href="../reference/planning-glossary.html">术语速查</a>。</p>
+
+    <h2>编码例子：会话过期边界修复</h2>
+    <p>任务包含定位、复现、确认根因、最小修复、三层测试和交付文档；根因开始时未知，且最终交付取决于多个验证结果。因此选择 <strong>Agent Loop + 显式计划</strong>。</p>
+    <ol>
+      <li>确认登录入口、会话实现和允许改动范围。</li>
+      <li>复现目标用例失败，并保存失败断言。</li>
+      <li>用源码证据确认根因，而不是把猜测当结论。</li>
+      <li>产生当前版本上的受控最小 diff。</li>
+      <li>收集 target、boundary、regression 三类测试通过证据。</li>
+      <li>写交付说明，并披露未验证项。</li>
+    </ol>
+    <p>注意：这不是线性待办清单。第 5 步依赖第 4 步，而任何旧版本的测试通过结果都不能证明修复后的代码可交付。</p>
+
+    <h2>面试的 20 秒回答模板</h2>
+    <div class="formula">先按任务不确定性与验收复杂度选执行结构。<br>当下一步依赖实时结果，用 Agent Loop；当还要持续管理多个子目标、依赖和完成条件，在 Loop 外加入显式计划。<br>模型只提出动作，PlanStore / Verifier 负责准入和验收，工具结果成为带版本的证据。</div>
+
+    <h2>检索练习：先选，再看反馈</h2>
+    <section class="quiz" data-quiz data-answer="显式计划" data-correct="正确。根因未知、步骤有依赖、且三层测试和交付说明共同决定能否交付，需要显式计划状态。" data-incorrect="再看验收复杂度：这不是只需依据一次工具结果继续的调查，而是要追踪多个子目标、依赖和完整交付条件。">
+      <h3>1. 修复会话过期边界，要求目标/边界/回归测试和修复说明都齐全，应选？</h3>
+      <div class="options"><button data-choice="工具调用">工具调用</button><button data-choice="固定流程">固定流程</button><button data-choice="代理循环">代理循环</button><button data-choice="显式计划">显式计划</button></div>
+      <p class="feedback" aria-live="polite"></p>
+    </section>
+    <section class="quiz" data-quiz data-answer="不能交付" data-correct="正确。目标测试只证明目标范围；完成契约还缺边界、回归和交付说明等必要证据。" data-incorrect="想想“完成契约”是合取条件：缺任一必要验证，任务级交付就不成立。">
+      <h3>2. 当前版本的目标测试通过，但边界和回归尚未运行，可以交付吗？</h3>
+      <div class="options"><button data-choice="可以交付">可以交付</button><button data-choice="不能交付">不能交付</button></div>
+      <p class="feedback" aria-live="polite"></p>
+    </section>
+    <section class="quiz" data-quiz data-answer="局部纠错" data-correct="正确。命令路径拼错是动作参数问题；原目标和前提未变，改参数重跑即可。" data-incorrect="计划修订处理的是前提或约束改变。这里仅是命令参数错误，不要为了小故障改动任务结构。">
+      <h3>3. 测试命令里的文件路径拼错了，优先采取？</h3>
+      <div class="options"><button data-choice="局部纠错">局部纠错</button><button data-choice="计划修订">计划修订</button></div>
+      <p class="feedback" aria-live="polite"></p>
+    </section>
+
+    <h2>带走的一句话</h2>
+    <p><strong>模型负责提出候选行动；系统负责决定是否允许行动、何时算完成。</strong>下一课将把这句话落为 Plan、PlanStep、Evidence 和 Completion Contract 的最小数据模型。</p>
+
+    <p class="next">不清楚的地方，直接问我。你也可以回复三道练习的答案与理由；我会据此决定下一课是直接设计 PlanStore，还是先巩固证据与完成契约。推荐精读：<a href="../../week3/3.2%20Planning%20%E4%B8%8E%E4%BB%BB%E5%8A%A1%E6%8B%86%E8%A7%A3.pdf">本节课程讲义 P10-P18</a>，并对照 <a href="https://arxiv.org/abs/2305.04091">Plan-and-Solve 原论文</a> 思考“提示式规划”和“运行时计划状态”的区别。</p>
+  </main>
+</body>
+</html>
+

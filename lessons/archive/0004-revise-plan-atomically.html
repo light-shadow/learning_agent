@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>第 4 课：revise_plan 与原子修订</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Lesson 0004 · 约 15 分钟</p>
+    <h1>revise_plan：计划可以改，验收标准不能降</h1>
+    <p class="lead">本课胜利条件：你能区分局部纠错与计划修订，并说明为什么修订必须带版本、证据和原子提交。</p>
+
+    <aside class="callout">
+      <strong>先分流，再改动：</strong>工具失败不自动等于计划错。先判断是参数错误、暂时性故障、前提被推翻，还是权限/预算限制；只有路径或约束真正变化时，才修订计划。<a href="../../week3/3.2%20Planning%20%E4%B8%8E%E4%BB%BB%E5%8A%A1%E6%8B%86%E8%A7%A3.pdf">课程讲义 P19-P23</a>
+    </aside>
+
+    <h2>四种结果，四种动作</h2>
+    <table>
+      <thead><tr><th>发生了什么</th><th>下一步</th><th>为什么</th></tr></thead>
+      <tbody>
+        <tr><td>测试命令的文件路径拼错</td><td>局部纠错并重跑</td><td>计划目标、依赖和完成标准都未变化。</td></tr>
+        <tr><td>幂等查询超时一次</td><td>受控重试</td><td>它可能是暂时故障；必须受预算和幂等性约束。</td></tr>
+        <tr><td>源码证据推翻“密码校验有问题”的假设</td><td>revise_plan</td><td>原修复步骤的前提已经不成立。</td></tr>
+        <tr><td>权限拒绝或预算耗尽</td><td>BLOCKED / 停止并报告</td><td>改计划不能获得权限，也不能制造预算。</td></tr>
+      </tbody>
+    </table>
+
+    <h2>修订请求不能只说“换个方案”</h2>
+    <div class="formula">RevisionRequest {<br>  expectedVersion: 1,<br>  reason: "源码证据表明过期判断截断到日期，而非密码校验",<br>  evidenceIds: ["ev-3"],<br>  replace: "modifyPasswordLogic" → "fixExpiryCheck"<br>}</div>
+    <p><code>reason</code> 说明为什么旧路径失效，<code>evidenceIds</code> 防止模型凭空换方向，<code>expectedVersion</code> 防止基于旧快照覆盖其他更新。完整字段见 <a href="../reference/plan-revision-protocol.html">计划修订协议速查</a>。</p>
+
+    <h2>替换步骤必须原子化</h2>
+    <p>假设原计划是：</p>
+    <div class="formula">s1 reproduce → s2 modifyPasswordLogic → s3 verifyRegression</div>
+    <p>证据显示根因在过期判断后，正确修订不是删除 s2 再“希望 s3 能继续”，而是一次提交完成：</p>
+    <div class="formula">s2 → SKIPPED（保留历史与原因）<br>新增 s2b fixExpiryCheck，dependsOn = [s1]<br>s3.dependsOn: [s2] → [s2b]<br>记录 replace 与 rewire<br>全部校验通过后才将 Plan version: 1 → 2</div>
+    <p>若中间任一步提交，系统可能看到“旧步骤已经跳过、新步骤却尚未接上”，从而错误地判定验证步骤就绪。</p>
+
+    <h2>候选副本：先验证整体，再改变真相</h2>
+    <div class="formula">public Plan revise(RevisionRequest request) {<br>  requireVersion(request.getExpectedVersion());<br>  requireEvidence(request.getEvidenceIds());<br>  Plan candidate = copyOf(currentPlan);<br>  applyChanges(candidate, request);<br>  validateUniqueIds(candidate); validateDependencies(candidate);<br>  validateAcyclic(candidate); validateRevisionBudget(candidate);<br>  return commit(candidate);<br>}</div>
+    <p>“候选副本”是原子性的关键：有环、重复 ID、缺失依赖或超预算时，返回错误，原计划<strong>一个字段都不变</strong>。</p>
+
+    <h2>修订可改路径，不能改完成定义</h2>
+    <div class="grid">
+      <section class="card"><span class="tag">可以</span><h3>替换实现路径</h3><p>从修密码校验改为修到期时刻判断；下游依赖随之改接。</p></section>
+      <section class="card"><span class="tag">不可以</span><h3>降低交付标准</h3><p>不能把“回归测试通过”改成“尝试运行过”，也不能删测试让任务看起来完成。</p></section>
+    </div>
+    <p>用户新增约束时，旧测试也不能自动证明新约束满足：需要检查既有 diff，并做相关的重新验证。</p>
+
+    <h2>检索练习：该重试、修订还是拒绝？</h2>
+    <section class="quiz" data-quiz data-answer="局部纠错" data-correct="正确。命令路径是动作参数；没有新事实推翻计划前提，改参数重跑即可。" data-incorrect="先问前提是否改变。单纯参数错误不应制造新的计划版本。">
+      <h3>1. 测试命令的文件路径拼错，正确处置是？</h3>
+      <div class="options"><button data-choice="局部纠错">局部纠错</button><button data-choice="计划修订">计划修订</button></div>
+      <p class="feedback" aria-live="polite"></p>
+    </section>
+    <section class="quiz" data-quiz data-answer="计划修订" data-correct="正确。新约束改变了可接受的路径；应检查既有 diff、使冲突步骤失效并重连后续验证。" data-incorrect="这不是局部代码选择；用户改变了任务约束，原计划可能已不合法。">
+      <h3>2. 用户新增“不得修改公共 API”，而当前计划包含接口变更，应当？</h3>
+      <div class="options"><button data-choice="局部纠错">局部纠错</button><button data-choice="计划修订">计划修订</button></div>
+      <p class="feedback" aria-live="polite"></p>
+    </section>
+    <section class="quiz" data-quiz data-answer="拒绝请求" data-correct="正确。请求基于 v1，但当前计划已是 v2；必须先读取新快照后再提交，不能覆盖并发更新。" data-incorrect="expectedVersion 是乐观锁。版本不一致时不应应用任何变更。">
+      <h3>3. revise_plan 携带 expectedVersion=1，但当前 Plan version=2，应当？</h3>
+      <div class="options"><button data-choice="接受请求">接受请求</button><button data-choice="拒绝请求">拒绝请求</button></div>
+      <p class="feedback" aria-live="polite"></p>
+    </section>
+
+    <h2>带走的一句话</h2>
+    <p><strong>修订是“带证据的、基于当前版本的、整体校验后提交”的路径调整；它绝不是失败时偷偷降低标准的出口。</strong></p>
+    <p class="next">完成练习后直接在对话中回复 1 / 2 / 3 的答案与理由。下一课将把 PlanStore、证据与修订接入完整 Agent Loop，并设计测试用例证明接线没有被绕过。</p>
+  </main>
+</body>
+</html>
+

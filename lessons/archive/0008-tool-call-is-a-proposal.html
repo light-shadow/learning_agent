@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>第 8 课：Tool Call 是提议，不是执行许可</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Lesson 0008 · Function Calling</p>
+    <h1>Tool Call 是提议，不是执行许可</h1>
+    <p class="lead">你已经会用 PlanStore 阻止“没有证据就完成”。现在要给真实动作加同样的硬边界：模型说“取消订单”，不等于订单已被取消。</p>
+
+    <aside class="callout">
+      <strong>本课的可迁移能力：</strong>面对任何 Function Calling 代码，你能指出谁拥有执行权，并写出一条“拒绝时 handler = 0”的验收测试。
+    </aside>
+
+    <h2>从一个危险的直觉开始</h2>
+    <p>用户说：“取消 <code>ord_123</code>。”模型返回：</p>
+    <div class="formula">{ id: "call_7", name: "cancel_order", arguments: { order_id: "ord_123" } }</div>
+    <p>这是一份<strong>候选动作</strong>，和用户输入一样不可信。它只回答“模型建议做什么”，没有回答“谁在取消”“是否有权限”“是否已审批”“这次超时后能否重试”。</p>
+
+    <h2>正确的执行闭环</h2>
+    <div class="formula">LLM 产生 call_7<br>→ Runtime：工具存在？参数有效？可信 userId 有 order:cancel？审批通过？<br>→ 仅门禁通过才调用 handler<br>→ Runtime：校验输出，生成带 call_7 的 Tool Result<br>→ Loop 把 Result 回给 LLM，再决定下一步</div>
+    <p>这和你的完成契约很像：模型能提出“我完成了”，但不能自己把任务状态改为完成；模型也能提出 Tool Call，但不能自己触发副作用。</p>
+
+    <h2>可信数据从哪里来？</h2>
+    <div class="grid">
+      <article class="card"><span class="tag">模型可填</span><h3>业务参数</h3><p><code>order_id</code>、状态筛选、日期。这些仍要经过 Input Schema 和业务规则校验。</p></article>
+      <article class="card"><span class="tag">Runtime 注入</span><h3>执行身份与治理</h3><p><code>userId</code>、tenant、role、approved、Trace ID。它们来自登录态/审批系统，绝不能放进模型的 Input Schema。</p></article>
+    </div>
+    <p>因此，模型可见的是公开的名称、描述和 Input Schema；handler、内部依赖、权限策略属于 Runtime 的私有执行侧。</p>
+
+    <h2>两个验收不变量</h2>
+    <table>
+      <thead><tr><th>不变量</th><th>为什么</th><th>可证明的测试</th></tr></thead>
+      <tbody>
+        <tr><td>拒绝发生在 handler 之前</td><td>参数错误、越权或缺审批不能产生真实副作用。</td><td>伪造越权 Tool Call；断言结果为 <code>PERMISSION_DENIED</code> 且 handler 调用次数为 0。</td></tr>
+        <tr><td>结果保留原 tool_call_id</td><td>并发时完成顺序会变，不能用工具名或顺序配对。</td><td>让 <code>call_A</code> / <code>call_B</code> 的同名查询乱序结束；断言每个 Result 的 ID 与原调用相同。</td></tr>
+      </tbody>
+    </table>
+
+    <h2>不要把“重试”当作安全按钮</h2>
+    <p>查询订单超时，通常可在有限预算内重试：它是只读操作。取消订单超时，则可能已经成功，只是客户端没有收到结果；Runtime 不能直接再取消一次。此时应查询状态、使用幂等键，或转为人工/业务确认。</p>
+
+    <h2>检索练习</h2>
+    <section class="quiz" data-quiz data-answer="拒绝" data-correct="正确。role 与 approved 必须来自可信执行上下文；让模型填写就是把权限边界交给不可信输入。" data-incorrect="先问：这个字段描述业务意图，还是决定执行权？决定执行权的字段不能由模型填写。">
+      <h3>1. AI 给 <code>cancel_order</code> 的 Input Schema 新增 <code>role: admin</code> 与 <code>approved: true</code>。应当？</h3>
+      <div class="options"><button data-choice="接受">接受</button><button data-choice="拒绝">拒绝</button></div>
+      <p class="feedback" aria-live="polite"></p>
+    </section>
+    <section class="quiz" data-quiz data-answer="call_B" data-correct="正确。Tool Result 必须沿用它所响应的调用 ID；完成顺序与生成顺序无关。" data-incorrect="不要按“第二个结果”猜。找 Result 自己携带的 tool_call_id。">
+      <h3>2. <code>call_A</code> 查询 ord_123，<code>call_B</code> 查询 ord_456。后者先结束。ord_456 的 Result ID 是？</h3>
+      <div class="options"><button data-choice="call_A">call_A</button><button data-choice="call_B">call_B</button></div>
+      <p class="feedback" aria-live="polite"></p>
+    </section>
+    <section class="quiz" data-quiz data-answer="查询" data-correct="正确。写操作超时的真实业务状态未知；先查询/利用幂等机制确认，而不是再发一次取消。" data-incorrect="超时只代表调用方没收到结果，并不代表服务端没执行。">
+      <h3>3. <code>cancel_order</code> 超时。Runtime 的安全下一步是？</h3>
+      <div class="options"><button data-choice="重试">重试</button><button data-choice="查询">查询</button></div>
+      <p class="feedback" aria-live="polite"></p>
+    </section>
+
+    <p class="next">完成三题后，把你的答案和一句解释发我。下一课我会让你把 <code>Input / Output / Error Schema</code> 映射成一份 Java/Spring 风格的 Tool Contract，并为“拒绝时 handler = 0”写测试。随时可以问我任何看不懂的地方。</p>
+    <p class="sources">主材料：<a href="../../week2/1-FunctionCalling%20%E4%B8%8E%20Tool%20Use.pdf">课程讲义 2.1</a>。延伸核对：<a href="https://platform.openai.com/docs/quickstart/make-your-first-api-request">OpenAI 官方工具指南</a>、<a href="https://modelcontextprotocol.io/specification/draft/server/index">MCP Server Specification</a>。</p>
+  </main>
+</body>
+</html>

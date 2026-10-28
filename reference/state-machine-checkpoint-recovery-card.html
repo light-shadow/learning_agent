@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>State Machine 与 Checkpoint 恢复速查</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Reference</p>
+    <h1>安全恢复速查：状态、记录与存档</h1>
+    <p class="lead">对话历史让模型知道“发生过什么”；业务状态让程序确认“现在还能做什么”。两者缺一不可。</p>
+    <h2>三个对象，各自回答一个问题</h2>
+    <table>
+      <thead><tr><th>对象</th><th>回答的问题</th><th>最少应保留什么</th></tr></thead>
+      <tbody>
+        <tr><td>任务状态机</td><td>现在处于什么阶段，下一步允许什么？</td><td>created、planning、running、waiting_tool、tool_failed、waiting_approval、completed、failed、cancelled；以及合法迁移。</td></tr>
+        <tr><td>步骤执行记录</td><td>具体做过什么，结果和证据怎样？</td><td>计划进度、工具调用 ID、输入输出、失败原因、重试、下步决策、证据与预算消耗。</td></tr>
+        <tr><td>Checkpoint</td><td>下次如何有依据地重建任务？</td><td>任务、计划、记录、证据、会话引用、工作区与代码版本/摘要、运行计数、待审批动作与决定。</td></tr>
+      </tbody>
+    </table>
+    <h2>恢复协议</h2>
+    <div class="formula">1. 校验存档：格式、必填字段、版本、完整性/校验和<br>2. 核对现场：工作区、文件/代码版本、未确认的工具结果<br>3. 检查规则：是否终态、审批是否仍有效、预算是否尚存<br>4. 还原对象：计划、步骤记录、证据、计数<br>5. 再续跑：准备上下文后才调用 Agent Loop</div>
+    <p><strong>关键规则：</strong>结果不明的写操作不能自动重放。Checkpoint 说“尚未写入”，但工作区可能已经变了；先输出核查信息并停止自动推进。</p>
+    <h2>最容易混淆的边界</h2>
+    <table>
+      <thead><tr><th>不要这样推断</th><th>正确判断</th></tr></thead>
+      <tbody>
+        <tr><td>会话能续接，所以任务能安全恢复。</td><td>会话只恢复上下文；任务恢复还要核对真实工作区与业务记录。</td></tr>
+        <tr><td>工具成功，所以任务完成。</td><td>工具成功只是一次动作结果；完成还需要计划步骤、验证与交付证据满足契约。</td></tr>
+        <tr><td>工具失败，所以任务失败。</td><td><code>tool_failed</code> 是一次调用的结果；任务可重试、改计划或安全停止。</td></tr>
+        <tr><td>暂停，所以任务已取消。</td><td>任务阶段和停止原因分开记录；<code>INTERRUPTED</code> 的 <code>running</code> 任务仍可能可恢复。</td></tr>
+        <tr><td>收到终止请求，所以操作已停。</td><td>停止请求、禁止新操作、已启动操作真实结束是三件不同的事。</td></tr>
+      </tbody>
+    </table>
+    <h2>审批门禁</h2>
+    <div class="formula">修改源码前：保存具体动作 → waiting_approval<br>批准时：重新核对动作参数和关联文件内容<br>未变且批准：waiting_approval → running → 执行<br>拒绝或授权失效：不得执行该写操作</div>
+    <p>批准绑定<strong>具体动作</strong>，不因重启默认继承；补丁参数或关联文件内容变化后，旧授权无效。</p>
+    <h2>恢复验收最小集</h2>
+    <ul>
+      <li>异常发生在写入与下一次存档之间时，检测到差异并阻止重复写入。</li>
+      <li>测试中断且无完整结果时，绝不标记验证通过。</li>
+      <li>等待审批时，批准前与拒绝后均没有写入；批准仅执行对应补丁。</li>
+      <li>损坏存档、缺失工作区或终态任务被明确拒绝恢复，且不启动模型或写工具。</li>
+      <li>恢复后保留历史失败、轮数、重试次数与预算消耗。</li>
+    </ul>
+    <p class="sources">来源：<a href="../../week3/3-3%20State%20Machine%20%E4%B8%8E%20Checkpoint.pdf">课程讲义《3.3 State Machine 与 Checkpoint》</a>。</p>
+  </main>
+</body>
+</html>

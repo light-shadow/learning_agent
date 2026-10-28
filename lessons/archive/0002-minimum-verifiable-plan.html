@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>第 2 课：最小可验证计划</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Lesson 0002 · 约 15 分钟</p>
+    <h1>把“计划”变成可拒绝错误操作的程序</h1>
+    <p class="lead">本课胜利条件：你能为 Coding Agent 画出最小数据模型，并解释为何“模型说完成”不算完成。</p>
+
+    <aside class="callout">
+      <strong>设计原则：</strong>完成标准在行动前定义，证据在行动后由 Runtime 写入。两者必须分开保存。这样模型即使知道标准，也不能伪造“已完成”。<a href="../../week3/3.2%20Planning%20%E4%B8%8E%E4%BB%BB%E5%8A%A1%E6%8B%86%E8%A7%A3.pdf">课程讲义 P14-P16</a>
+    </aside>
+
+    <h2>最小模型：四类对象，两个时间方向</h2>
+    <div class="grid">
+      <section class="card"><span class="tag">行动前</span><h3>Plan + PlanStep</h3><p>说明目标、约束、依赖，以及每步结束后应产生什么事实。</p></section>
+      <section class="card"><span class="tag">行动后</span><h3>Evidence</h3><p>记录一次真实工具执行的结果：谁产生、属于哪一步、在哪个代码版本产生。</p></section>
+      <section class="card"><span class="tag">步骤级</span><h3>Step Verifier</h3><p>检查当前步骤引用的证据是否满足它事先写下的 successCriteria。</p></section>
+      <section class="card"><span class="tag">任务级</span><h3>Completion Contract</h3><p>检查整个交付是否齐全，例如变更、三类测试和说明文档。</p></section>
+    </div>
+
+    <h2>Java 8 的最小接口</h2>
+    <div class="formula">enum StepStatus { PENDING, IN_PROGRESS, COMPLETED, BLOCKED, SKIPPED, FAILED }<br><br>class PlanStep {<br>  String id; String objective; List&lt;String&gt; dependsOn;<br>  List&lt;String&gt; successCriteria; StepStatus status; List&lt;String&gt; evidenceIds;<br>}<br><br>class Evidence {<br>  String id; String stepId; String toolCallId; long artifactVersion;<br>  EvidenceKind kind; Map&lt;String, Object&gt; payload;<br>}<br><br>interface CompletionContract {<br>  CompletionResult verify(CompletionContext context);<br>}</div>
+    <p>完整字段含义见 <a href="../reference/minimum-verifiable-plan.html">最小可验证计划模板</a>。这里最重要的不是字段数量，而是两条边界：</p>
+    <ol>
+      <li><strong>模型可提议，程序可拒绝。</strong>模型提交 <code>complete(stepId, evidenceIds)</code> 只是申请；PlanStore 才能改变状态。</li>
+      <li><strong>证据必须绑定版本。</strong>修改源码后，先前“测试通过”的证据不自动适用于新代码。</li>
+    </ol>
+
+    <h2>一步完成时，程序应检查什么？</h2>
+    <div class="formula">complete(s5, [e4, e5, e6])<br>  → 证据列表非空？<br>  → 每项证据存在且属于 s5？<br>  → test / diff 的 artifactVersion = 当前代码版本？<br>  → StepVerifier 满足 s5.successCriteria？<br>  → 才将 s5.status 置为 COMPLETED</div>
+    <p>这些检查必须在 Runtime 真正执行完工具之后、模型宣称完成之前进行。否则计划只是提示词中的一段文字。</p>
+
+    <h2>案例：会话过期边界修复</h2>
+    <table>
+      <thead><tr><th>步骤</th><th>完成标准</th><th>有效证据</th></tr></thead>
+      <tbody>
+        <tr><td>s2：复现失败</td><td>target 测试 exit code = 1，保存期望与实际断言</td><td>v0 的测试失败日志</td></tr>
+        <tr><td>s3：确认根因</td><td>指出具体实现缺陷，且来自源码读取</td><td>v0 的源码检查结果</td></tr>
+        <tr><td>s4：最小修复</td><td>允许范围内出现受控 diff</td><td>v1 的 diff</td></tr>
+        <tr><td>s5：分层验证</td><td>target / boundary / regression 均 exit code = 0</td><td>v1 的三份测试结果</td></tr>
+      </tbody>
+    </table>
+    <p>注意 s2 的 <code>exit code = 1</code> 只能是复现证据的一部分：它还必须是 target 范围的执行结果，并携带期望值、实际值和断言位置，才能证明“原问题被复现”而非环境或命令失败。证据的意义由步骤标准决定，不能只看退出码正负。</p>
+
+    <h2>为什么还要 Completion Contract？</h2>
+    <p>每个步骤都完成，只说明局部事实成立；任务仍可能不该交付。例如遗漏交付说明、代码不在当前允许范围，或测试证据不是当前版本。</p>
+    <div class="formula">任务完成 = 当前版本存在允许的改动<br>AND target / boundary / regression 均通过<br>AND 交付说明存在且披露未验证项</div>
+    <p>面试里可以这样说：<strong>“我将 StepVerifier 设计为局部正确性检查，将 Completion Contract 设计为任务级合取条件，避免局部通过被误判为可交付。”</strong></p>
+
+    <h2>检索练习：用规则判断</h2>
+    <section class="quiz" data-quiz data-answer="拒绝完成" data-correct="正确。测试证据产生于 v1，而当前代码已是 v2；它不能证明 v2 的修复仍然正确。" data-incorrect="代码版本是证据的一部分。修改后必须重新获得与当前版本匹配的测试或 diff 证据。">
+      <h3>1. 当前代码版本 v2，s5 引用的通过测试来自 v1，应当？</h3>
+      <div class="options"><button data-choice="允许完成">允许完成</button><button data-choice="拒绝完成">拒绝完成</button></div>
+      <p class="feedback" aria-live="polite"></p>
+    </section>
+    <section class="quiz" data-quiz data-answer="拒绝完成" data-correct="正确。单独的 exit code 1 不能证明目标断言实际执行并失败；还需要 target 范围、期望值、实际值和断言位置等事实。" data-incorrect="不要只看退出码。exit code 1 也可能来自命令参数、环境或基础设施；复现步骤需要足以区分这些情况的证据。">
+      <h3>2. s2 只拿到 exit code 1，缺少断言详情，应当？</h3>
+      <div class="options"><button data-choice="允许完成">允许完成</button><button data-choice="拒绝完成">拒绝完成</button></div>
+      <p class="feedback" aria-live="polite"></p>
+    </section>
+    <section class="quiz" data-quiz data-answer="拒绝完成" data-correct="正确。模型的自然语言结论不是 Evidence；没有可引用、可验证的工具事实，状态不能变为 COMPLETED。" data-incorrect="完成申请不能凭模型自述。请回到“证据由执行层写入”的边界。">
+      <h3>3. 模型说“已修复”，但没有引用 evidenceIds，应当？</h3>
+      <div class="options"><button data-choice="允许完成">允许完成</button><button data-choice="拒绝完成">拒绝完成</button></div>
+      <p class="feedback" aria-live="polite"></p>
+    </section>
+
+    <h2>带走的一句话</h2>
+    <p><strong>Plan 定义要证明什么，Evidence 记录实际证明了什么，Completion Contract 决定这些局部事实是否足以交付。</strong></p>
+    <p class="next">完成练习后，回复每题答案及理由。下一课将进入 PlanStore 的状态转换与依赖门禁：怎样让未就绪步骤的工具 handler 根本不被调用。</p>
+  </main>
+</body>
+</html>
+

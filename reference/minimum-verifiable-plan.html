@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>最小可验证计划模板</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Reference</p>
+    <h1>最小可验证计划模板</h1>
+    <p class="lead">适用于首个单进程 Coding Agent：先让规则正确、可测，再考虑持久化、并发和多 Agent。</p>
+
+    <h2>四个对象</h2>
+    <table>
+      <thead><tr><th>对象</th><th>必须包含</th><th>不负责什么</th></tr></thead>
+      <tbody>
+        <tr><td>Plan</td><td>goal、constraints、version、steps、revisionCount</td><td>不直接保存模型的自然语言推理。</td></tr>
+        <tr><td>PlanStep</td><td>objective、dependsOn、successCriteria、status、evidenceIds</td><td>不自行产生证据或绕过依赖。</td></tr>
+        <tr><td>Evidence</td><td>stepId、toolCallId、artifactVersion、kind、payload</td><td>不等于模型的总结或结论。</td></tr>
+        <tr><td>CompletionContract</td><td>任务级必备条件与验证函数</td><td>不替代每个步骤的验收条件。</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Java 8 形状</h2>
+    <div class="formula">enum StepStatus { PENDING, IN_PROGRESS, COMPLETED, BLOCKED, SKIPPED, FAILED }<br><br>class PlanStep {<br>  String id; String objective; List&lt;String&gt; dependsOn;<br>  List&lt;String&gt; successCriteria; StepStatus status; List&lt;String&gt; evidenceIds;<br>}<br><br>class Evidence {<br>  String id; String stepId; String toolCallId; long artifactVersion;<br>  EvidenceKind kind; Map&lt;String, Object&gt; payload;<br>}<br><br>interface CompletionContract {<br>  CompletionResult verify(CompletionContext context);<br>}</div>
+
+    <h2>不可省略的规则</h2>
+    <ol>
+      <li>只有所有依赖步骤为 <code>COMPLETED</code>，当前步骤才能开始。</li>
+      <li>模型只能请求完成；程序校验证据存在、归属正确、版本新鲜且符合 successCriteria 后才改变状态。</li>
+      <li>代码版本变化后，旧版本的 test / diff 证据不能证明新版本的修复完成。</li>
+      <li>步骤完成不等于任务完成；Completion Contract 还要检查全局交付条件。</li>
+    </ol>
+
+    <p class="next">配套课程：<a href="../lessons/0012-planning-verifiable-task-decomposition.html">第 12 课：Planning 与任务拆解</a></p>
+  </main>
+</body>
+</html>
+
