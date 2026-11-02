@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>第 20 课：LLM Wiki</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><main>
+<p class="eyebrow">Lesson 0020 · Week 4 / 4.5</p><h1>LLM Wiki：让派生知识可追溯、可更新、可治理</h1><p class="lead">RAG 为当前问题找资料；LLM Wiki 持续整理多来源之间的关系。模型可以生成草稿，但程序必须控制证据、发布、版本和权限。</p>
+<h2>最小知识资产结构</h2><div class="formula">raw/ 原始快照 → staging/ 待核草稿 → wiki/ 已发布页面<br>schema + manifests(来源/依赖) + logs(操作/失败) + reports(验收)</div>
+<p>原始来源不可被模型改写；新页面先进入 staging。页面需要身份、状态、适用范围、来源版本/哈希、关键结论旁的具体证据和待核对事项。页面元数据里写 `access_policy` 不等于系统真的实现了鉴权。</p>
+<h2>发布是两次核对的原子动作</h2><ol><li>Host 按身份读取授权来源并冻结快照。</li><li>模型生成草稿、结论到证据映射与缺口说明。</li><li>程序检查路径、ID、来源哈希、引用、链接与内容支持关系。</li><li>提交前再次核对来源、权限和页面基线版本。</li><li>原子发布页面、依赖、导航索引与日志；失败则保留草稿和原因。</li></ol>
+<p>“退出登录需求”不能被写成“功能已实现”；历史测试不能被写成本次测试通过。事实、源码观察、需求草稿、推导和执行结果必须保持区分。</p>
+<h2>来源变化不是全局替换</h2><p>规则从 30 分钟变为 60 分钟时，先沿依赖图找受影响页面、问答、索引与缓存并标为待复核。页面应如实表达“当前规则为 60 分钟，源码仍为 30 分钟，尚未同步”；旧版本保留供历史查询。未批准的 90 分钟建议不能覆盖当前已批准规则。</p>
+<h2>权限贯穿全生命周期</h2><p>读取来源、生成页面、发布、检索、导出和缓存命中是不同操作，都由可信宿主程序授权。派生总结不能因为“没有复制原文”就扩大可见范围；撤销来源访问权后，相关页面、索引、缓存和长期记忆都需重新评估。</p>
+<section class="quiz" data-quiz data-answer="暂存" data-correct="正确。模型生成只得到候选知识；结构和内容核验、发布策略与提交前复核通过后才能发布。" data-incorrect="草稿没有自动获得事实地位。"><h3>1. Agent 生成的知识页应先暂存还是直接发布？</h3><div class="options"><button data-choice="暂存">暂存</button><button data-choice="发布">发布</button></div><p class="feedback" aria-live="polite"></p></section>
+<section class="quiz" data-quiz data-answer="失效" data-correct="正确。来源撤权后，相关派生页、索引和缓存都需重新计算可见性或失效。" data-incorrect="来源撤权不能被旧缓存绕过。"><h3>2. 受限来源撤权后，相关缓存应公开还是失效？</h3><div class="options"><button data-choice="公开">公开</button><button data-choice="失效">失效</button></div><p class="feedback" aria-live="polite"></p></section>
+<p class="sources">速查：<a href="../reference/context-memory-retrieval-governance-card.html">信息供给层速查卡</a>。主材料：<a href="../../week4/4-5%20LLM%20Wiki%20%E4%B8%8E%E7%9F%A5%E8%AF%86%E8%B5%84%E4%BA%A7%E6%B2%BB%E7%90%86.pdf">4.5 LLM Wiki 与知识资产治理</a>。可以问我：怎样为一条业务规则设计来源-页面-索引依赖？</p><p class="next">下一课：将受治理的长期记忆与 RAG 实际接入 Codebase Agent。</p>
+</main></body></html>

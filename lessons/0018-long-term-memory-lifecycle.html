@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>第 18 课：Long-term Memory</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><main>
+<p class="eyebrow">Lesson 0018 · Week 4 / 4.3</p><h1>Long-term Memory：保存可复用知识，而非保存一切</h1><p class="lead">工作记忆帮助完成这一次 Run；长期记忆让下一次任务少走弯路，但它必须有来源、范围和失效策略。</p>
+<h2>先决定什么值得记</h2><table><thead><tr><th>适合跨任务保存</th><th>不应默认保存</th></tr></thead><tbody><tr><td>模块位置、测试入口、稳定项目规则、已核验的故障经验</td><td>当前补丁状态、一次性日志、猜测、凭证、令牌、完整用户载荷</td></tr><tr><td>“`OrderService` 由哪些测试覆盖”</td><td>“我准备在下一轮修改哪个方法”</td></tr></tbody></table>
+<p>每条候选都问三件事：以后哪类任务会使用？来源能否核对？在什么条件下失效？</p>
+<h2>记录事实的“性质”</h2><div class="formula">Knowledge Item = 内容 + 类型(要求/事实/推断) + project/scope + source + checkedAt + version/hash + expiry/status</div>
+<p>“产品规则要求会话到期失效”“当前源码使用某比较符”“模型推测缓存相关”不是同一类知识。前者要看谁有权提出，后者要看证据是否仍适用于当前代码，推断只能作后续调查线索。</p>
+<h2>OKF 是可读知识包，不是事实担保</h2><p>OKF 用 Markdown 正文、YAML 元数据、`index.md` 与 `log.md` 组织项目知识。格式校验只能检查结构，不能证明 `description` 中的模块位置仍然正确。模型在新会话应先检索相关候选、读取全文与来源，再检查当前代码。</p>
+<h2>冲突、失效与治理</h2><p>更新或删除前先确认项目、范围与精确记录 ID。新消息更晚不代表更可靠，也可能针对另一分支。过期知识应退出默认当前查询，但若有历史价值可保留并标明范围；删除用于错误或不该保留的内容。记忆的 `remember`/`recall` 也是受治理工具：写入需权限、来源与审计，不能绕过 Runtime。</p>
+<section class="quiz" data-quiz data-answer="核对" data-correct="正确。检索得到的是候选知识，模块路径和测试命令仍要与当前项目核对。" data-incorrect="长期记忆减少搜索，不替代当前现场验证。"><h3>1. 新任务检索到旧测试命令后，应直接使用还是先核对？</h3><div class="options"><button data-choice="核对">核对</button><button data-choice="注入">注入</button></div><p class="feedback" aria-live="polite"></p></section>
+<section class="quiz" data-quiz data-answer="保留" data-correct="正确。过期且有历史价值的记录应退出当前视图并保留历史范围，而非抹去追溯线索。" data-incorrect="先区分不再适用与完全没有保留价值。"><h3>2. 有历史价值但已过期的故障经验，应保留还是删除？</h3><div class="options"><button data-choice="保留">保留</button><button data-choice="删除">删除</button></div><p class="feedback" aria-live="polite"></p></section>
+<p class="sources">速查：<a href="../reference/context-memory-retrieval-governance-card.html">信息供给层速查卡</a>。主材料：<a href="../../week4/4-3%20Memory%20%E4%BD%93%E7%B3%BB.pdf">4.3 Memory 体系</a>。可以问我：如何区分项目约定、代码观察和模型推断？</p><p class="next">下一课：当资料规模超过直接阅读能力时，如何用 RAG 找到并验证本轮证据。</p>
+</main></body></html>

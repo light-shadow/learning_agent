@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>第 19 课：现代 RAG</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><main>
+<p class="eyebrow">Lesson 0019 · Week 4 / 4.4</p><h1>现代 RAG：把检索结果变成可核对证据</h1><p class="lead">RAG 是给模型补充本轮可见资料，不是给模型“装入知识”。检索到片段、放进 Context、模型忠于片段，是三个独立问题。</p>
+<h2>离线准备与在线回答</h2><div class="formula">解析来源 → 结构化分块 → 元数据/向量/关键词索引 → 检索候选 → 筛选/重排/压缩 → 证据装配 → 回答/引用/校验</div>
+<p>分块既要能定位标题、函数或文件，又不能切断条件、否定词、版本与适用范围。每块保留来源路径、类型、版本与定位信息；更换 embedding 模型或维度时，必须确认兼容性并重新建索引。</p>
+<h2>先诊断在哪一层丢了证据</h2><table><thead><tr><th>现象</th><th>优先检查</th></tr></thead><tbody><tr><td>正确资料从未进入候选</td><td>解析、分块、元数据、查询表达、向量/关键词召回</td></tr><tr><td>候选有正确资料，最终输入没有</td><td>Top-K、过滤、重排、预算与压缩</td></tr><tr><td>最终输入有证据，回答仍错误</td><td>回答约束、引用与结论支持校验</td></tr></tbody></table>
+<p>重排只能重排已有候选，不能找回候选之外的证据；压缩能减少无关文本，但不能删掉范围、条件、版本或来源。</p>
+<h2>引用合法，不等于结论成立</h2><p>编号 `[2]` 存在，只能证明它引用了本轮证据。系统还要检查该证据是否支持这句话、回答是否覆盖问题的全部要求。证据不足时应明确“无法确认”，而不是用通用工程经验补全当前项目的事实。</p>
+<h2>同一问题集评价完整链路</h2><p>分别看：证据召回率（找回多少必要证据）、命中率（是否至少找到一条）、回答覆盖/支持、引用有效性、建库与在线查询的完整 Token/成本/延迟。某项处理更复杂或最终 Context 更短，都不自动代表更准确或更便宜。</p>
+<section class="quiz" data-quiz data-answer="补检索" data-correct="正确。正确证据不在候选里，重排无法凭空补回；先检查数据准备或召回。" data-incorrect="重排只能处理已经召回的候选。"><h3>1. 正确测试命令完全未进入候选时，应先重排还是补检索？</h3><div class="options"><button data-choice="重排">重排</button><button data-choice="补检索">补检索</button></div><p class="feedback" aria-live="polite"></p></section>
+<section class="quiz" data-quiz data-answer="未知" data-correct="正确。当前证据不足时，明确未知并继续检索或请求补充，不能把猜测包装成项目事实。" data-incorrect="RAG 的目标是有依据地回答，而非始终给出具体答案。"><h3>2. 证据没有写修改范围时，回答应说未知还是猜测？</h3><div class="options"><button data-choice="未知">未知</button><button data-choice="猜测">猜测</button></div><p class="feedback" aria-live="polite"></p></section>
+<p class="sources">速查：<a href="../reference/context-memory-retrieval-governance-card.html">信息供给层速查卡</a>。主材料：<a href="../../week4/4-4%20%E7%8E%B0%E4%BB%A3%20RAG%20%E7%B3%BB%E7%BB%9F.pdf">4.4 现代 RAG 系统</a>。可以问我：如何为 Spring 项目的接口规则设计 RAG 评测题集？</p><p class="next">下一课：把重复整理的多来源结论做成可发布、可更新、可控访问的知识资产。</p>
+</main></body></html>

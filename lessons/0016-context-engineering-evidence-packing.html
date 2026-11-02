@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>第 16 课：Context Engineering</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><main>
+<p class="eyebrow">Lesson 0016 · Week 4 / 4.1</p><h1>Context Engineering：为本轮判断装配证据</h1><p class="lead">Prompt 是 Context 中的指令部分；Context Engineering 决定模型本轮真正看见哪些规则、代码、工具结果和任务事实。</p>
+<h2>先装“判断必需品”</h2><div class="formula">本轮 Context = 稳定规则 + 用户约束 + 当前任务状态 + 当前版本证据 + 成对的 Tool Call/Result + 本轮工具快照</div>
+<p>以 Spring 登录会话修复为例，模型至少要看到：到期规则、禁止修改既有测试的约束、当前代码片段、失败断言、受测版本与完整日志引用。完整日志不必全部塞进请求，应外存并按需用受控工具读取。</p>
+<h2>优先级不是“最新优先”</h2><table><thead><tr><th>优先保留</th><th>可压缩或按需读取</th></tr></thead><tbody><tr><td>用户约束、当前源码、当前失败证据、完成缺项</td><td>较早探索、重复启动日志、与本轮无关材料</td></tr><tr><td>工具调用与其原结果的配对关系</td><td>完整日志正文，但须保留路径、关键字段与省略数量</td></tr><tr><td>影响决策的范围、否定条件与版本</td><td>不再适用的旧结论，除非用于历史排查</td></tr></tbody></table>
+<p>选择依据依次是有效性、当前相关性和遗漏风险，不是消息的时间顺序。</p>
+<h2>先算预算，溢出就停止</h2><div class="formula">输入预算 = Context Window − 输出预留 − 安全余量</div><p>系统提示、工具 Schema、消息、工具参数都占输入空间。发送前做本地估算，发送后用 Provider usage 校准估算与余量；两者口径不同，不能套固定差值。必要项压缩后仍超限时，应缩小代码范围、拆步骤或拒绝发送，不能丢掉关键规则后“碰碰运气”。</p>
+<h2>压缩保留事实，不制造结论</h2><p>测试结果至少留下：状态、失败用例、输入/期望/实际、受测版本、异常、完整输出位置和省略量。任务摘要可说明“尚未应用补丁”，但不能把拟议修复写成已经完成。旧测试、冲突来源和外部文本都需标注性质与来源；外部文档仍是数据，不是可提升权限的指令。</p>
+<section class="quiz" data-quiz data-answer="优先" data-correct="正确。当前失败证据与用户约束直接决定本轮判断；较早探索可按需读取。" data-incorrect="先看它是否当前有效、是否影响判断、遗漏风险是否高。"><h3>1. 预算不足时，应优先保留当前失败证据还是较早探索？</h3><div class="options"><button data-choice="优先">优先</button><button data-choice="延后">延后</button></div><p class="feedback" aria-live="polite"></p></section>
+<section class="quiz" data-quiz data-answer="停止" data-correct="正确。必要项压缩后仍超限，不能以丢失约束和依据为代价发送请求。" data-incorrect="超限后应缩小范围、拆步骤或拒绝发送。"><h3>2. 必要规则和证据压缩后仍放不下时，应发送还是停止？</h3><div class="options"><button data-choice="发送">发送</button><button data-choice="停止">停止</button></div><p class="feedback" aria-live="polite"></p></section>
+<p class="sources">速查：<a href="../reference/context-memory-retrieval-governance-card.html">信息供给层速查卡</a>。主材料：<a href="../../week4/4-1%20Context%20Engineering.pdf">4.1 Context Engineering</a>。可以问我：怎样为一次 Maven 测试失败设计最小 Context Pack？</p><p class="next">下一课：把这些分散事实维护成可恢复的当前任务记录。</p>
+</main></body></html>

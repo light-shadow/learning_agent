@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Context、Memory 与 RAG 速查卡</title><link rel="stylesheet" href="../assets/course.css"></head>
+<body><main>
+<p class="eyebrow">Week 4 · Reference</p><h1>信息供给层速查卡</h1><p class="lead">先分清信息属于哪一层，再决定怎样保存、检索、核对与授权。任何一层都不能替代真实代码、测试与 Runtime 的执行门禁。</p>
+<h2>六类信息放在哪里</h2><table><thead><tr><th>层</th><th>回答的问题</th><th>必须保留</th><th>不能证明</th></tr></thead><tbody>
+<tr><td>Context Packing</td><td>本轮给模型什么</td><td>当前规则、约束、相关证据、预算</td><td>外部动作已完成</td></tr>
+<tr><td>Working Memory</td><td>当前任务做到哪里</td><td>目标、约束、风险、进度、未决项、事实引用</td><td>现场仍未变化</td></tr>
+<tr><td>Checkpoint</td><td>中断前已记录什么</td><td>状态、计划、证据、审批、计数、版本</td><td>中断期间的真实副作用</td></tr>
+<tr><td>Long-term Memory</td><td>以后任务可复用什么</td><td>项目知识、来源、范围、检查时间、失效条件</td><td>当前源码仍然如此</td></tr>
+<tr><td>RAG</td><td>当前问题需要哪些外部证据</td><td>来源、版本、片段、权限、检索过程</td><td>回答已被证据支持</td></tr>
+<tr><td>LLM Wiki</td><td>多来源关系如何持续维护</td><td>来源快照、草稿、依赖、发布记录、状态</td><td>模型草稿就是事实</td></tr>
+</tbody></table>
+<h2>证据信封</h2><div class="formula">Evidence = 内容摘要 + source + location + artifactVersion + executionId + observedAt + accessPolicy</div>
+<p>结论要能回到具体来源与位置；代码或规则变化后，旧证据仍是历史事实，但未必能为当前状态背书。</p>
+<h2>RAG 排障顺序</h2><ol><li>正确来源是否已读取、解析、分块并带元数据入库？</li><li>正确证据是否进入候选集合？没有，先改数据准备或召回。</li><li>正确证据是否进入最终 Context？没有，检查过滤、重排、预算和压缩。</li><li>模型是否忠于最终证据？没有，要求引用、做结论支持校验或明确“不足以确认”。</li></ol>
+<h2>知识更新的原子流程</h2><div class="formula">授权快照 → 草稿(staging) → 结构/内容核验 → 再核对来源、权限、页版本 → 原子发布 → 索引/缓存/依赖同步</div>
+<p>来源变更时，先用依赖图找受影响页面并标为待复核；不能全局替换旧数值，更不能把需求、建议或历史记录写成已上线事实。</p>
+<h2>交付前检查</h2><ul><li>本轮 Context 是否保留必要约束与当前版本证据？</li><li>记忆是否说明来源、适用范围、性质（要求/事实/推断）与失效条件？</li><li>RAG 回答的每条关键结论是否被对应证据支持，而非仅有合法编号？</li><li>读取、生成、发布、检索、导出和缓存是否都执行访问控制？</li><li>资料、记忆与源码冲突时，是否指出冲突并用当前代码/测试核验，而非擅自选一方？</li></ul>
+<p class="next">配套课程：<a href="../lessons/0016-context-engineering-evidence-packing.html">第 16 课</a>、<a href="../lessons/0017-working-memory-task-record.html">第 17 课</a>、<a href="../lessons/0018-long-term-memory-lifecycle.html">第 18 课</a>、<a href="../lessons/0019-rag-evidence-pipeline.html">第 19 课</a>、<a href="../lessons/0020-llm-wiki-knowledge-governance.html">第 20 课</a>、<a href="../lessons/0021-codebase-rag-memory-integration.html">第 21 课</a>。</p>
+</main></body></html>

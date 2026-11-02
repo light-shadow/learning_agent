@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>第 17 课：Working Memory</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><main>
+<p class="eyebrow">Lesson 0017 · Week 4 / 4.2</p><h1>Working Memory：维护当前任务的可核对状态</h1><p class="lead">聊天历史记录发生过什么；工作记忆直接回答当前任务已经做成什么、还缺什么、下一步可做什么。</p>
+<h2>当前任务记录的最小模型</h2><div class="formula">goal + constraints + risks + completedSteps + facts + unresolved + scratchpad + currentArtifactVersion</div>
+<p>例如修复 `SessionService` 的边界条件时，记录目标、不得修改测试的约束、已读取文件与失败测试、尚未应用补丁和未重新验证等事实。风险要写明可能影响、依据、下一步核查；未确认风险标为待确认。</p>
+<h2>事实、提议、原文各自保存</h2><table><thead><tr><th>对象</th><th>能写什么</th><th>必须带什么</th></tr></thead><tbody><tr><td>原始 Tool Result</td><td>完整执行输出</td><td>tool_call_id、执行记录</td></tr><tr><td>工作记忆事实</td><td>当前判断所需摘要</td><td>source、executionId、artifactVersion、原文 reference</td></tr><tr><td>Scratchpad</td><td>拟议路径、观察、下一步</td><td>关联证据；明确“尚未验证”</td></tr></tbody></table>
+<p>“把 `&lt;=` 改为 `&lt;`”是提议，不是补丁已写入；只有 Runtime 回执才能把进度更新为真实完成。</p>
+<h2>保存不等于每轮全量发送</h2><p>工作记忆要持久保存，防止进程退出后丢失；装配器再按本轮目标、证据有效性和 Token 预算选择其中相关部分进入模型输入。它也不同于 Agent State：后者还保存消息、模型、工具快照与运行标记。</p>
+<h2>恢复时先核对现场</h2><p>工作记忆告诉系统上次记录到哪里，却不能证明文件、分支或外部系统没有变化。恢复时，先核对当前版本与未决动作，再依据真实结果更新事实；不能将过期测试结果继续当作当前证据。</p>
+<section class="quiz" data-quiz data-answer="事实" data-correct="正确。执行成功只能由 Runtime 回执确定；模型方案应留在 Scratchpad 并标为未验证。" data-incorrect="模型建议不等于已经产生了外部副作用。"><h3>1. “准备修改比较符”在工作记忆中应是事实还是提议？</h3><div class="options"><button data-choice="事实">事实</button><button data-choice="提议">提议</button></div><p class="feedback" aria-live="polite"></p></section>
+<section class="quiz" data-quiz data-answer="更新" data-correct="正确。代码变更后，旧测试只能保留为历史事实，当前状态要等待新验证。" data-incorrect="旧版本测试不能为新版本背书。"><h3>2. 代码从 v1 改到 v2 后，v1 测试事实应更新还是继续作为当前证据？</h3><div class="options"><button data-choice="更新">更新</button><button data-choice="保留">保留</button></div><p class="feedback" aria-live="polite"></p></section>
+<p class="sources">速查：<a href="../reference/context-memory-retrieval-governance-card.html">信息供给层速查卡</a>。主材料：<a href="../../week4/4-2%20Working%20Memory%20%E4%B8%8E%E4%BB%BB%E5%8A%A1%E4%B8%8A%E4%B8%8B%E6%96%87.pdf">4.2 Working Memory 与任务上下文</a>。可以问我：如何为 Java 缺陷修复设计 Working Memory JSON？</p><p class="next">下一课：哪些当前事实值得跨任务保留，以及何时必须让它们失效。</p>
+</main></body></html>

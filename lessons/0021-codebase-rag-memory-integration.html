@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>第 21 课：Codebase RAG 与 Memory</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><main>
+<p class="eyebrow">Lesson 0021 · Week 4 / 4.6</p><h1>Codebase RAG &amp; Memory：让 Agent 看得见，也记得准</h1><p class="lead">长期记忆解决跨 Run 遗忘；RAG 解决当前改代码前看不到业务依据。两者只提供可核对线索，不替代代码、测试、Runtime 和完成契约。</p>
+<h2>信息供给的正确连接</h2><div class="formula">新任务 → Working Memory/Checkpoint 恢复当前状态<br>→ 检索 Long-term Memory + RAG 证据 → Context Packing<br>→ Loop/Runtime 执行 → 代码与测试产生新事实 → 更新记忆或知识库</div>
+<p>例如 Agent 要修改 Spring Session 过期逻辑：RAG 提供业务规则与来源；长期记忆提供模块位置和 Maven 测试入口；源码与真实测试确认当前行为。三者冲突时，应指出冲突并用当前代码、测试与权威规则核验，不能静默选择看起来更可信的一方。</p>
+<h2>Memory 与 RAG 都是受治理能力</h2><table><thead><tr><th>能力</th><th>风险与边界</th><th>必要验收</th></tr></thead><tbody><tr><td>memory_recall</td><td>读取跨会话知识，受项目/权限/范围过滤</td><td>相关查询能取回；路径穿越和越权被拒</td></tr><tr><td>memory_remember</td><td>写入项目知识，不能保存凭证或把推断当事实</td><td>格式、来源、索引和日志同步；写入经审批/审计</td></tr><tr><td>rag_query</td><td>只读检索，不修改知识库或工作区</td><td>答案与编号来源一一对应；证据不足明确说明</td></tr></tbody></table>
+<p>三种能力均注册进 Tool Registry，经 RBAC、白名单、Runtime 和审计；模型不能直连文件、向量库或记忆目录。</p>
+<h2>五项端到端验收</h2><ol><li><strong>找得到</strong>：RAG 能找回问题所需来源，且引用可定位。</li><li><strong>装得下</strong>：装配器在预算内保留约束、当前状态和关键证据。</li><li><strong>记得准</strong>：跨会话确实读取持久知识，而非恰好在聊天历史里出现。</li><li><strong>恢复得了</strong>：中断后先核对现场，未把旧状态或旧授权当作当前事实。</li><li><strong>解释得清</strong>：能说明使用了哪些资料、版本、工具结果与验证证据。</li></ol>
+<h2>遇到资料与代码打架</h2><p>RAG 查到“会话 30 分钟”，而当前源码实现为 20 分钟时，不能擅自称其中一方为真。回答应显式区分“资料规则/资料版本”和“源码观察/代码版本”，必要时运行受控测试或请求负责人裁决；资料更新与记忆更新也不能宣称代码已同步。</p>
+<section class="quiz" data-quiz data-answer="指出" data-correct="正确。资料和代码冲突是待验证事实；应保留双方依据并用当前代码、测试和权威规则核验。" data-incorrect="静默覆盖会隐藏真正需要修复或澄清的差异。"><h3>1. RAG 规则与当前代码冲突时，应指出还是覆盖？</h3><div class="options"><button data-choice="指出">指出</button><button data-choice="覆盖">覆盖</button></div><p class="feedback" aria-live="polite"></p></section>
+<section class="quiz" data-quiz data-answer="治理" data-correct="正确。记忆读写与 RAG 查询也是工具能力，必须经过 Registry、权限、Runtime 和审计。" data-incorrect="模型直连存储会绕开权限、白名单和可追溯性。"><h3>2. memory_remember 应走治理层还是直连存储？</h3><div class="options"><button data-choice="治理">治理</button><button data-choice="直连">直连</button></div><p class="feedback" aria-live="polite"></p></section>
+<p class="sources">速查：<a href="../reference/context-memory-retrieval-governance-card.html">信息供给层速查卡</a>。主材料：<a href="../../week4/4-6%20%E9%A1%B9%E7%9B%AE%E6%BC%94%E8%BF%9B%E8%B7%AF%E7%BA%BF%20%E9%98%B6%E6%AE%B5%E5%9B%9B%EF%BC%9ACodebase%20RAG%20%26%20Memory.pdf">4.6 Codebase RAG &amp; Memory</a>。可以问我：怎样为 Java/Spring Agent 设计 `rag_query` 与 `memory_remember` 的工具契约？</p><p class="next">Week 4 主线完成。下一步可选一个真实 Java/Spring 模块，把这套信息供给层落成可验证的设计。</p>
+</main></body></html>
