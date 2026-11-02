@@ -2,6 +2,20 @@
 
 ## Knowledge
 
+- [Week 4 讲义目录](../week4/)
+  覆盖 Context Engineering、Working Memory、Long-term Memory、现代 RAG、LLM Wiki 与 Codebase RAG & Memory；用于为可验证 Coding Agent 构建“看见什么、记住什么、依据从哪里来”的信息供给层。
+- [课程讲义：4.1 Context Engineering](../week4/4-1%20Context%20Engineering.pdf)
+  用于：在 Token 预算内装配当前规则、代码、工具结果与证据，管理压缩、污染、缓存与调试报告。
+- [课程讲义：4.2 Working Memory 与任务上下文](../week4/4-2%20Working%20Memory%20%E4%B8%8E%E4%BB%BB%E5%8A%A1%E4%B8%8A%E4%B8%8B%E6%96%87.pdf)
+  用于：把目标、约束、风险、进度和带来源的执行事实维护成当前任务记录。
+- [课程讲义：4.3 Memory 体系](../week4/4-3%20Memory%20%E4%BD%93%E7%B3%BB.pdf)
+  用于：区分工作记忆与跨任务长期记忆，设计带来源、适用范围、失效状态和权限约束的可维护项目知识。
+- [课程讲义：4.4 现代 RAG 系统](../week4/4-4%20%E7%8E%B0%E4%BB%A3%20RAG%20%E7%B3%BB%E7%BB%9F.pdf)
+  用于：文档解析、分块、混合检索、重排、压缩、引用和端到端评估；避免将命中分数或引文编号误认为答案正确。
+- [课程讲义：4.5 LLM Wiki 与知识资产治理](../week4/4-5%20LLM%20Wiki%20%E4%B8%8E%E7%9F%A5%E8%AF%86%E8%B5%84%E4%BA%A7%E6%B2%BB%E7%90%86.pdf)
+  用于：将原始来源、草稿、已发布知识、依赖、版本、权限和维护日志组织为可追溯的知识资产。
+- [课程讲义：4.6 Codebase RAG & Memory 项目演进](../week4/4-6%20%E9%A1%B9%E7%9B%AE%E6%BC%94%E8%BF%9B%E8%B7%AF%E7%BA%BF%20%E9%98%B6%E6%AE%B5%E5%9B%9B%EF%BC%9ACodebase%20RAG%20%26%20Memory.pdf)
+  用于：将受治理的长期记忆与可追溯 RAG 接入 Codebase Agent，并以代码、测试和引用共同裁决冲突。
 - [Week 1 讲义目录](../week1/)
   覆盖模型 API、Streaming、Prompt、Structured Output、LLM Gateway 与阶段一项目；用于建立所有后续 Agent 能力的受控模型调用底座。
 - [课程讲义：2.1 Function Calling 与 Tool Use](../week2/1-FunctionCalling%20%E4%B8%8E%20Tool%20Use.pdf)
