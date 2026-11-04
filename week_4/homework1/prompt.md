@@ -1,8 +1,10 @@
 # 为 pi 增加项目长期记忆
 
 ## 项目文件
-   H:\agent_fullstack_geek\learning_agent\week_4\login_demo
-   直接在这个文件夹下修改即可
+   项目代码位置：H:\agent_fullstack_geek\learning_agent\week_4\login_demo
+   pi的位置：H:\agent_fullstack_geek\learning_agent\week_4\homework1\pi-mono <br>
+   直接在这个pi的位置文件夹下修改即可
+
 ## 需求
 记忆至少支持四个动作：写入、按项目查找并读取、更新、删除。可以由工具或课程插件提供，不强制使用特定工具名称，不要求接入向量数据库。
 
