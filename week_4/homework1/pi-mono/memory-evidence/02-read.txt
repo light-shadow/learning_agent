@@ -1,0 +1,7 @@
+读取进程：新启动的 Node 进程（加载同一 pi 扩展）
+数据库：H:\agent_fullstack_geek\learning_agent\week_4\homework1\pi-mono\memory-evidence\project-memory.sqlite3
+记忆：测试路径：tests/test_session.py；运行命令：python -m unittest tests.test_session -v；实际结果：5 tests OK。
+来源：artifacts/test-guide.md; tests/test_session.py
+核对：tests/test_session.py 存在 = True
+核对：tests/auth/test_session.py 存在 = False
+回答：当前会话测试入口是 tests/test_session.py。

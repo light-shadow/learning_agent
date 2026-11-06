@@ -1,0 +1,14 @@
+数据库：H:\agent_fullstack_geek\learning_agent\week_4\homework1\pi-mono\memory-evidence\project-memory.sqlite3
+真实迁移：tests/auth/test_session.py → tests/test_session.py
+测试命令：python -m unittest tests.test_session -v
+test_issued_token_has_demo_prefix (tests.test_session.SessionTokenTest.test_issued_token_has_demo_prefix) ... ok
+test_known_vector (tests.test_session.SessionTokenTest.test_known_vector) ... ok
+test_rejects_foreign_token (tests.test_session.SessionTokenTest.test_rejects_foreign_token) ... ok
+test_rejects_malformed_payload (tests.test_session.SessionTokenTest.test_rejects_malformed_payload) ... ok
+test_token_roundtrip_preserves_payload (tests.test_session.SessionTokenTest.test_token_roundtrip_preserves_payload) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.000s
+
+OK
+写入结果：{"project": "h:\\agent_fullstack_geek\\learning_agent\\week_4\\login_demo", "key": "session-test", "content": "测试路径：tests/test_session.py；运行命令：python -m unittest tests.test_session -v；实际结果：5 tests OK。", "source": "artifacts/test-guide.md; tests/test_session.py", "version": 1, "updated_at": "2026-11-04 07:53:08"}

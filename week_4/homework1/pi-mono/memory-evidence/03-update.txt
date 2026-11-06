@@ -1,0 +1,16 @@
+真实迁回：tests/test_session.py → tests/auth/test_session.py
+测试命令：python -m unittest tests.auth.test_session -v
+test_issued_token_has_demo_prefix (tests.auth.test_session.SessionTokenTest.test_issued_token_has_demo_prefix) ... ok
+test_known_vector (tests.auth.test_session.SessionTokenTest.test_known_vector) ... ok
+test_rejects_foreign_token (tests.auth.test_session.SessionTokenTest.test_rejects_foreign_token) ... ok
+test_rejects_malformed_payload (tests.auth.test_session.SessionTokenTest.test_rejects_malformed_payload) ... ok
+test_token_roundtrip_preserves_payload (tests.auth.test_session.SessionTokenTest.test_token_roundtrip_preserves_payload) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.001s
+
+OK
+更新后记忆：测试路径：tests/auth/test_session.py；运行命令：python -m unittest tests.auth.test_session -v；实际结果：5 tests OK。
+来源：artifacts/test-guide.md; tests/auth/test_session.py
+版本：2；测试文件存在：True
+回答：当前会话测试入口已更新为 tests/auth/test_session.py。

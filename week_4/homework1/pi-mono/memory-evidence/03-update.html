@@ -1,0 +1,18 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>03 迁回并更新后的回答</title>
+<style>body{margin:0;background:#f2f5fa;color:#17243a;font:19px 'Microsoft YaHei',sans-serif}main{margin:40px auto;padding:38px 46px;max-width:1300px;background:white;border-radius:12px;box-shadow:0 4px 24px #c7d0dd}h1{font-size:30px;margin:0 0 22px}pre{font:18px/1.65 Consolas,'Microsoft YaHei',monospace;white-space:pre-wrap;overflow-wrap:anywhere}small{color:#53657c}</style>
+<main><h1>03 迁回并更新后的回答</h1><small>实际命令输出记录 · 通过 pi 扩展工具执行 · 独立进程</small><pre>真实迁回：tests/test_session.py → tests/auth/test_session.py
+测试命令：python -m unittest tests.auth.test_session -v
+test_issued_token_has_demo_prefix (tests.auth.test_session.SessionTokenTest.test_issued_token_has_demo_prefix) ... ok
+test_known_vector (tests.auth.test_session.SessionTokenTest.test_known_vector) ... ok
+test_rejects_foreign_token (tests.auth.test_session.SessionTokenTest.test_rejects_foreign_token) ... ok
+test_rejects_malformed_payload (tests.auth.test_session.SessionTokenTest.test_rejects_malformed_payload) ... ok
+test_token_roundtrip_preserves_payload (tests.auth.test_session.SessionTokenTest.test_token_roundtrip_preserves_payload) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.001s
+
+OK
+更新后记忆：测试路径：tests/auth/test_session.py；运行命令：python -m unittest tests.auth.test_session -v；实际结果：5 tests OK。
+来源：artifacts/test-guide.md; tests/auth/test_session.py
+版本：2；测试文件存在：True
+回答：当前会话测试入口已更新为 tests/auth/test_session.py。</pre></main></html>
